@@ -29,4 +29,6 @@ Chrome DevTools browser checks and screenshots covered 320, 375, 390, 768, and 1
 
 ## Personalized hologram
 
-See [tools/hologram/README.md](tools/hologram/README.md) for the complete local asset pipeline, package/model sources and licenses, binary formats, quality presets, model checksum, validation steps, and the MediaPipe wheel metadata caveat. The original sphere is removed. The 24,000-point face uses the supplied portrait and locally inferred landmark depth; it is approximate 2.5D, not a full 3D identity reconstruction. Navigation, typography, page content, CTAs, and SEO metadata are preserved.
+See [tools/hologram/README.md](tools/hologram/README.md) for the complete local asset pipeline, package/model sources and licenses, binary formats, quality presets, model checksum, validation steps, and the MediaPipe wheel metadata caveat. The original sphere is removed. The V2 hybrid uses 15,641 feature-aware samples and a depth-aligned original-photo detail layer; it uses the supplied portrait and locally inferred landmark depth; it is approximate 2.5D, not a full 3D identity reconstruction. Navigation, typography, page content, CTAs, and SEO metadata are preserved.
+
+V2 refinement details and comparison methodology: [tools/hologram/V2.md](tools/hologram/V2.md). The working V1 portfolio is checkpointed at `e3c0102`. V2 does not modify navigation, typography, CTAs, metadata, or other section content.

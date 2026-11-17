@@ -2,10 +2,10 @@
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { AdditiveBlending, BufferAttribute, BufferGeometry, Group, MathUtils, ShaderMaterial } from "three";
+import { AdditiveBlending, BufferAttribute, BufferGeometry, Group, MathUtils, ShaderMaterial, SRGBColorSpace, Texture } from "three";
 import { hologram, qualityPresets, type PointerTarget, type Quality } from "@/lib/hologram/config";
-import { createAmbientGeometry, createFaceGeometry, decodePortrait, type PortraitData } from "@/lib/hologram/geometry";
-import { faceFragmentShader, faceVertexShader } from "@/lib/hologram/shaders";
+import { createAmbientGeometry, createDetailGeometry, createFaceGeometry, decodePortrait, type PortraitData } from "@/lib/hologram/geometry";
+import { detailFragmentShader, detailVertexShader, faceFragmentShader, faceVertexShader } from "@/lib/hologram/shaders";
 
 type SceneProps = {
   pointer: RefObject<PointerTarget>;
@@ -14,6 +14,7 @@ type SceneProps = {
   onReady: () => void;
   onFailure: () => void;
   onDegrade: () => void;
+  onPromote: () => void;
 };
 
 function RendererLifecycle({ onFailure }: Pick<SceneProps, "onFailure">) {
@@ -34,29 +35,33 @@ function RendererLifecycle({ onFailure }: Pick<SceneProps, "onFailure">) {
   return null;
 }
 
-function Sculpture({ data, pointer, quality, onReady, onDegrade }: Omit<SceneProps, "active" | "onFailure"> & { data: PortraitData }) {
+function Sculpture({ data, texture, pointer, quality, onReady, onDegrade, onPromote }: Omit<SceneProps, "active" | "onFailure"> & { data: PortraitData; texture: Texture }) {
   const group = useRef<Group>(null);
   const ambient = useRef<Group>(null);
   const material = useRef<ShaderMaterial>(null);
+  const detailMaterial = useRef<ShaderMaterial>(null);
   const elapsed = useRef(0);
   const announced = useRef(false);
-  const performance = useRef({ seconds: 0, frames: 0, cooldown: 0 });
+  const performance = useRef({ seconds: 0, frames: 0, cooldown: 0, promoted: false });
   const { size, gl } = useThree();
   const preset = qualityPresets[quality];
+  const detail = useMemo(() => createDetailGeometry(data), [data]);
   const face = useMemo(() => createFaceGeometry(data), [data]);
   const contours = useMemo(() => {
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new BufferAttribute(data.contours, 3));
     return geometry;
   }, [data]);
-  const atmosphere = useMemo(() => createAmbientGeometry(130), []);
+  const atmosphere = useMemo(() => createAmbientGeometry(80), []);
   const uniforms = useMemo(() => ({ uTime: { value: 0 }, uAssembly: { value: 0 }, uPointSize: { value: 1.7 }, uDpr: { value: 1 } }), []);
+
+  const detailUniforms = useMemo(() => ({ uPortrait: { value: texture }, uTime: { value: 0 }, uAssembly: { value: 0 } }), [texture]);
 
   useEffect(() => {
     face.setDrawRange(0, Math.min(preset.particles, data.seeds.length));
     atmosphere.setDrawRange(0, preset.ambient);
   }, [face, atmosphere, preset, data]);
-  useEffect(() => () => { face.dispose(); contours.dispose(); atmosphere.dispose(); }, [face, contours, atmosphere]);
+  useEffect(() => () => { face.dispose(); detail.dispose(); contours.dispose(); atmosphere.dispose(); }, [face, detail, contours, atmosphere]);
 
   useFrame((_, delta) => {
     // Clamp resume delta so tab/visibility changes never advance the intro abruptly.
@@ -68,6 +73,10 @@ function Sculpture({ data, pointer, quality, onReady, onDegrade }: Omit<ScenePro
       uniforms.uAssembly.value = MathUtils.smoothstep(time / hologram.assemblySeconds, 0, 1);
       uniforms.uPointSize.value = preset.pointSize * Math.min(size.height / 600, 1.3);
       uniforms.uDpr.value = gl.getPixelRatio();
+    }
+    if (detailMaterial.current) {
+      detailMaterial.current.uniforms.uTime.value = time;
+      detailMaterial.current.uniforms.uAssembly.value = MathUtils.smoothstep(time / hologram.assemblySeconds, 0, 1);
     }
     if (group.current) {
       group.current.rotation.y = MathUtils.damp(group.current.rotation.y, pointer.current.x * hologram.horizontalRotation, 5, delta);
@@ -81,12 +90,14 @@ function Sculpture({ data, pointer, quality, onReady, onDegrade }: Omit<ScenePro
       ambient.current.position.y = -pointer.current.y * .025;
     }
     if (!announced.current && time > .08) { announced.current = true; onReady(); }
-    // Only step down. Ignore assembly and long hidden-tab resume frames.
+    // One measured promotion at most; sustained slow frames step down with a cooldown.
     const sample = performance.current;
     if (time > 3 && delta < .2 && time > sample.cooldown) {
       sample.seconds += delta; sample.frames++;
       if (sample.seconds > 2) {
-        if (sample.seconds / sample.frames > .034) onDegrade();
+        const average = sample.seconds / sample.frames;
+        if (average > .034) { sample.promoted = true; onDegrade(); }
+        else if (average < .019 && !sample.promoted && quality === "medium") { sample.promoted = true; onPromote(); }
         sample.seconds = 0; sample.frames = 0; sample.cooldown = time + 5;
       }
     }
@@ -94,23 +105,26 @@ function Sculpture({ data, pointer, quality, onReady, onDegrade }: Omit<ScenePro
 
   return <>
     <group ref={group}>
-      <points geometry={face} frustumCulled={false}>
-        <shaderMaterial ref={material} uniforms={uniforms} vertexShader={faceVertexShader} fragmentShader={faceFragmentShader} transparent depthWrite={false} depthTest={false} blending={AdditiveBlending} toneMapped={false} />
+      <mesh geometry={detail} renderOrder={0}>
+        <shaderMaterial ref={detailMaterial} uniforms={detailUniforms} vertexShader={detailVertexShader} fragmentShader={detailFragmentShader} transparent depthWrite depthTest toneMapped={false} />
+      </mesh>
+      <points geometry={face} frustumCulled={false} renderOrder={1}>
+        <shaderMaterial ref={material} uniforms={uniforms} vertexShader={faceVertexShader} fragmentShader={faceFragmentShader} transparent depthWrite={false} depthTest toneMapped={false} />
       </points>
-      <lineSegments geometry={contours}>
-        <lineBasicMaterial color="#79aee9" transparent opacity={.035} depthWrite={false} blending={AdditiveBlending} toneMapped={false} />
+      <lineSegments geometry={contours} renderOrder={2}>
+        <lineBasicMaterial color="#79aee9" transparent opacity={.012} depthWrite={false} blending={AdditiveBlending} toneMapped={false} />
       </lineSegments>
     </group>
     <group ref={ambient}>
-      <points geometry={atmosphere}>
-        <pointsMaterial color="#7cc4e6" size={.009} transparent opacity={.26} depthWrite={false} sizeAttenuation blending={AdditiveBlending} toneMapped={false} />
+      <points geometry={atmosphere} renderOrder={-1}>
+        <pointsMaterial color="#7cc4e6" size={.009} transparent opacity={.16} depthWrite={false} sizeAttenuation blending={AdditiveBlending} toneMapped={false} />
       </points>
     </group>
   </>;
 }
 
 export default function HologramScene(props: SceneProps) {
-  const [data, setData] = useState<PortraitData | null>(null);
+  const [assets, setAssets] = useState<{ data: PortraitData; texture: Texture } | null>(null);
   const { onFailure } = props;
   useEffect(() => {
     const controller = new AbortController();
@@ -119,13 +133,29 @@ export default function HologramScene(props: SceneProps) {
       if (!response.ok) throw new Error("Portrait asset unavailable.");
       return response.arrayBuffer();
     };
-    Promise.all([get(hologram.surfaceUrl), get(hologram.contourUrl)])
-      .then(([particles, contours]) => setData(decodePortrait(particles, contours)))
-      .catch(() => { if (!controller.signal.aborted) onFailure(); });
-    return () => controller.abort();
+    let texture: Texture | undefined;
+    let bitmap: ImageBitmap | undefined;
+    const load = async () => {
+      const response = await fetch(hologram.textureUrl, { signal: controller.signal, credentials: "same-origin" });
+      if (!response.ok) throw new Error("Portrait detail unavailable.");
+      const blob = await response.blob();
+      bitmap = await createImageBitmap(blob, { imageOrientation: "flipY" });
+      if (controller.signal.aborted) { bitmap.close(); return; }
+      texture = new Texture(bitmap);
+      texture.colorSpace = SRGBColorSpace;
+      texture.flipY = false;
+      texture.needsUpdate = true;
+      const [particles, contours, surface] = await Promise.all([get(hologram.surfaceUrl), get(hologram.contourUrl), get(hologram.detailUrl)]);
+      if (!controller.signal.aborted) setAssets({ data: decodePortrait(particles, contours, surface), texture });
+    };
+    load().catch(() => {
+      texture?.dispose(); bitmap?.close();
+      if (!controller.signal.aborted) onFailure();
+    });
+    return () => { controller.abort(); texture?.dispose(); bitmap?.close(); };
   }, [onFailure]);
 
-  if (!data) return null;
+  if (!assets) return null;
   return <Canvas
     orthographic camera={{ position: [0, 0, 5], near: .1, far: 20, zoom: 150 }}
     dpr={[1, qualityPresets[props.quality].dpr]}
@@ -142,7 +172,7 @@ export default function HologramScene(props: SceneProps) {
   >
     <ResponsiveCamera />
     <RendererLifecycle onFailure={onFailure} />
-    <Sculpture data={data} pointer={props.pointer} quality={props.quality} onReady={props.onReady} onDegrade={props.onDegrade} />
+    <Sculpture data={assets.data} texture={assets.texture} pointer={props.pointer} quality={props.quality} onReady={props.onReady} onDegrade={props.onDegrade} onPromote={props.onPromote} />
   </Canvas>;
 }
 

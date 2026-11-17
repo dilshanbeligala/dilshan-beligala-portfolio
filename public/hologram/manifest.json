@@ -1,41 +1,50 @@
 {
+  "version": 2,
   "source": "/images/dilshan-portrait.jpg",
   "sourceSha256": "821873a3c68b9780bce4dcdc292e32fe29bcb1bfb387abc29a30522bc49f5f52",
   "model": "MediaPipe Face Landmarker float16 v1",
   "modelSha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
   "landmarks": 478,
-  "surfaceVertices": 468,
-  "surfaceTriangles": 898,
-  "particles": 24000,
+  "surfaceVertices": 7128,
+  "surfaceTriangles": 9512,
+  "surfaceColumns": 72,
+  "surfaceRows": 99,
+  "particles": 15641,
+  "particleStride": 24,
   "contourVertices": 248,
-  "particleStride": 20,
-  "positionMin": [
-    -0.9209,
-    -1.40651,
-    -0.65
-  ],
-  "positionMax": [
-    0.9821,
-    1.39122,
-    0.28908
-  ],
-  "limitations": "Approximate front-facing 2.5D. Landmark depth is inferred, not measured. Hair/ears/neck depth is extrapolated from a source-specific silhouette. No hidden surfaces reconstructed.",
+  "audit": {
+    "landmarkDepthRmsePixels": 1.451808102811553,
+    "depthRangePixels": [
+      -22.224029573186876,
+      44.674544278441495
+    ]
+  },
+  "sampling": "Deterministic scrambled Halton candidates, feature-weighted rejection, local spacing exclusion; no replacement clumps.",
+  "limitations": "Source-aligned approximate 2.5D; inferred depth compressed to preserve likeness. Hair/ear/neck depth is conservative. The photo remains 400x400; no hidden or enhanced facial details are generated.",
   "assets": {
-    "facial-particles.bin": {
-      "bytes": 480016,
-      "sha256": "5f6c4de9ed9c774423f9839468db0d3695008f54eaf672d4b3cb09e2c0ac7f4c"
-    },
     "facial-contours.bin": {
       "bytes": 2976,
-      "sha256": "08dfda5659489f5d1071326c4c32f4f6dd1cf38c1a57a501fdcb6399c5f97c48"
+      "sha256": "3b1fe58b95c9ef0869b10d85b27eede3f671d624db2d0530350903ac8b9e31ba"
     },
-    "portrait-fallback.webp": {
-      "bytes": 112028,
-      "sha256": "8462166039d0cc71a68eb00511c5ae2225e69e05bd0b95ee2913eb37e17c7889"
+    "facial-detail.bin": {
+      "bytes": 171088,
+      "sha256": "5323a87d53fc0eb80fe638dfe57b1630a8af67809b21af4a4c6c7366f9517bc5"
+    },
+    "facial-particles.bin": {
+      "bytes": 375400,
+      "sha256": "080489c61778eaac794280386ce14da911338ef5109e7bfabf994b543b137a32"
     },
     "facial-surface.glb": {
-      "bytes": 11744,
-      "sha256": "557118789f393c3b753af2ec18d0f9c0df8d508f5e70f4b73e0a0d747e8ef99a"
+      "bytes": 256544,
+      "sha256": "d733d29c5e89fa7777ff02969517e0ad9b7437bb56670333c8753c9896d72a69"
+    },
+    "portrait-detail.webp": {
+      "bytes": 28476,
+      "sha256": "38c74202d2602d13616b728baff4f3390fdcbf688bf2ad1587a00cdab64aff84"
+    },
+    "portrait-fallback-v2.webp": {
+      "bytes": 55788,
+      "sha256": "4dfbb8199e2feb05bf1eacfe7f23d1e4fa692084b5dee074e3a8a7f8c46d9886"
     }
   }
 }

@@ -19,7 +19,7 @@ export function HeroStage({ children }: { children: ReactNode }) {
   }, []);
 
   return <section ref={section} id="home" className="hero" onPointerMove={event => {
-    if (reduced || event.pointerType !== "mouse") return;
+    if (reduced || event.pointerType !== "mouse" || !window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const px = event.clientX - rect.left;
     const py = event.clientY - rect.top;

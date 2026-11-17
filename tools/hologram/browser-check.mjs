@@ -36,7 +36,10 @@ const waitFor = async expression => {
   for (let attempt = 0; attempt < 80; attempt++) { if (await evaluate(`Boolean(${expression})`)) return; await pause(150); }
   throw new Error(`Timed out: ${expression}`);
 };
-const viewport = (width, height, mobile = false) => call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
+const viewport = async (width, height, mobile = false) => {
+  await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
+  await call('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: 1 });
+};
 const shot = async (name, height) => {
   const width = await evaluate('innerWidth');
   const { data } = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 } });
@@ -52,11 +55,12 @@ const inspect = () => evaluate(`(() => ({ width: innerWidth, overflow: document.
 const report = {};
 try {
   await call('Page.enable'); await call('Runtime.enable'); await call('Log.enable'); await call('Network.enable');
-  await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.__hologramDraws = 0; const draw = WebGL2RenderingContext.prototype.drawArrays; WebGL2RenderingContext.prototype.drawArrays = function(...args) { window.__hologramDraws++; return draw.apply(this, args); };` });
+  await call('Page.addScriptToEvaluateOnNewDocument', { source: `window.__hologramDraws = 0; for (const method of ['drawArrays', 'drawElements']) { const draw = WebGL2RenderingContext.prototype[method]; WebGL2RenderingContext.prototype[method] = function(...args) { window.__hologramDraws++; return draw.apply(this, args); }; }` });
   await viewport(1440, 1000);
   await call('Page.navigate', { url: 'http://localhost:3001' });
   await waitFor("document.querySelector('.hologram-ready canvas') && document.querySelector('.hologram-fallback img')?.complete");
   await pause(2500);
+  report.frameIntervals = await evaluate(`new Promise(resolve => { const values = []; let previous; const frame = now => { if (previous !== undefined) values.push(now - previous); previous = now; if (values.length < 90) requestAnimationFrame(frame); else { const sorted = [...values].sort((a,b)=>a-b); resolve({ samples: values.length, meanMs: values.reduce((a,b)=>a+b,0)/values.length, p95Ms: sorted[Math.floor(sorted.length*.95)] }); } }; requestAnimationFrame(frame); })`);
   report.desktop = await inspect();
   assert(!report.desktop.overflow && report.desktop.canvas && report.desktop.ready && report.desktop.imageLoaded);
   assert.equal(report.desktop.missingLinks.length, 0);

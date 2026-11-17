@@ -28,14 +28,18 @@ export function HolographicPortrait({ pointer }: { pointer: RefObject<PointerTar
     setQuality(current => current === "high" ? "medium" : current === "medium" ? "low" : null);
   }, []);
 
+  const promote = useCallback(() => setQuality(current => current === "medium" ? "high" : current), []);
+
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const mobile = window.matchMedia("(max-width: 700px)");
+    const noHover = window.matchMedia("(hover: none)");
     const touch = window.matchMedia("(pointer: coarse)");
-    const wide = window.matchMedia("(min-width: 1600px)");
+
     let supported: boolean | null = null;
     const evaluate = () => {
-      if (reduced.matches || mobile.matches) {
+      const connection = "connection" in navigator ? navigator.connection : null;
+      const saveData = typeof connection === "object" && connection !== null && "saveData" in connection && connection.saveData === true;
+      if (reduced.matches || (touch.matches && noHover.matches) || saveData) {
         setQuality(null);
         return;
       }
@@ -48,14 +52,14 @@ export function HolographicPortrait({ pointer }: { pointer: RefObject<PointerTar
           context?.getExtension("WEBGL_lose_context")?.loseContext();
         } catch { supported = false; }
       }
-      setQuality(supported ? touch.matches ? "low" : wide.matches ? "high" : "medium" : null);
+      setQuality(supported ? touch.matches ? "low" : "medium" : null);
       setReady(false);
     };
     const frame = requestAnimationFrame(evaluate);
-    for (const media of [reduced, mobile, touch, wide]) media.addEventListener("change", evaluate);
+    for (const media of [reduced, noHover, touch]) media.addEventListener("change", evaluate);
     return () => {
       cancelAnimationFrame(frame);
-      for (const media of [reduced, mobile, touch, wide]) media.removeEventListener("change", evaluate);
+      for (const media of [reduced, noHover, touch]) media.removeEventListener("change", evaluate);
     };
   }, []);
 
@@ -87,7 +91,7 @@ export function HolographicPortrait({ pointer }: { pointer: RefObject<PointerTar
     <div className="hologram-halo" aria-hidden="true" />
     <div className="hologram-reticle" aria-hidden="true"><i /><i /><i /><i /></div>
     <div className="hologram-fallback"><Image src={hologram.fallbackUrl} alt="" width={768} height={768} sizes="(max-width: 700px) 100vw, 56vw" priority /></div>
-    {shouldRender && <div className="hologram-canvas" aria-hidden="true"><RenderBoundary onFailure={fail}><HologramScene pointer={pointer} quality={quality} active={visible && tabVisible} onReady={markReady} onFailure={fail} onDegrade={degrade} /></RenderBoundary></div>}
+    {shouldRender && <div className="hologram-canvas" aria-hidden="true"><RenderBoundary onFailure={fail}><HologramScene pointer={pointer} quality={quality} active={visible && tabVisible} onReady={markReady} onFailure={fail} onDegrade={degrade} onPromote={promote} /></RenderBoundary></div>}
     <div className="hologram-topline" aria-hidden="true"><span className="status-dot" /> DILSHAN // DIGITAL CONSCIOUSNESS</div>
     <div className="hologram-side-label" aria-hidden="true">HUMAN IMAGINATION.<br /><b>DIGITAL EXPRESSION.</b></div>
     <div className="hologram-caption" aria-hidden="true"><span>PORTRAIT STUDY / 01</span><span>IDENTITY, REIMAGINED <i>↗</i></span></div>

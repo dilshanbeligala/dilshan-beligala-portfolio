@@ -49,33 +49,11 @@ MPLCONFIGDIR="$PWD/.cache/matplotlib" XDG_CACHE_HOME="$PWD/.cache" .venv-hologra
 
 MediaPipe on macOS needs a graphics context for image preprocessing even with CPU inference selected. A restrictive process sandbox may prevent initialization. Processing remains entirely local when run with that permission.
 
-## Geometry and likeness
+## V2 reconstruction, formats, and renderer
 
-The generator uses the actual `public/images/dilshan-portrait.jpg` (400 × 400). Its SHA-256 is checked because the hand-traced hair/ear/neck silhouette is specific to this photograph. If the source changes, inspect and trace the new silhouette rather than reusing it silently.
+The current implementation is V2. Read [V2.md](V2.md) for the audit, interpolation and sampling methods, depth-aligned photographic layer, binary formats, quality policy, diagnostics, measurements, checkpoint, and limitations. The original V1 implementation is recoverable at Git commit `e3c0102`.
 
-MediaPipe detects 478 landmarks. The first 468 establish a source-specific facial surface. A Delaunay triangulation and linear depth interpolation generate the shallow facial relief; a small Gaussian smoothing kernel reduces interpolation artifacts. The hair outline is traced from the photograph and its depth, ears, and neck are conservatively extrapolated from nearby facial landmarks. Source luminance and local contrast preserve eyes, facial hair, skin shading, and hairstyle in the particles. No generic head model is used.
-
-Outputs:
-
-- `public/hologram/facial-surface.glb`: 468 vertices, 898 triangles, reusable approximate face surface. Not loaded by the website.
-- `facial-particles.bin`: 24,000 randomized, source-weighted samples. A 16-byte header (`DBHP`, uint32 version/count/stride), then 20 bytes per point: float32 XYZ, RGB bytes, size byte, float32 seed, all multi-byte numbers little-endian. Decoder validates dimensions and values.
-- `facial-contours.bin`: float32 XYZ pairs for selected facial feature contours.
-- `portrait-fallback.webp`: locally rendered from the same particle data, not an AI-generated replacement face.
-- `manifest.json`: source/model/asset hashes, counts, byte sizes, and limitations.
-
-Local review images and intermediate landmarks are in ignored `tools/hologram/private/`, outside the served assets. No recognition embeddings, blendshape coefficients, or identity classifiers are produced.
-
-## Rendering
-
-The hero keeps server-rendered text and the static portrait visible immediately. Three/Fiber is dynamically loaded on eligible screens. The GPU uses one face `Points` draw call, one faint contour draw call, and one ambient draw call; no bloom or postprocessing is used.
-
-Presets: high 24,000 points / DPR 1.5; medium 16,000 / DPR 1.25; low 5,000 / DPR 1. Initial desktop quality is medium, large displays high, touch tablets low. Mobile at 700px or narrower and reduced motion use the static image and do not load the scene. Quality steps down after sustained slow frames; these are starting budgets, not guaranteed performance targets. No hardware fingerprinting is used.
-
-Pointer tracking is limited to ±5° yaw / ±3° pitch with delta-based damping. Pointer exit returns to neutral. Shader displacement remains bounded at a fraction of one source pixel. The main assembly takes about 2.1 seconds, followed by a slow, narrow scanning band and subtle shimmer. Offscreen/hidden-tab rendering stops, and time resumes without a large jump. Context loss, invalid assets, capability failure, shader errors, component failure, and a 12-second loading timeout retain or restore the static portrait. Geometry, listeners, capability contexts, and fetches are cleaned up.
-
-## Limitations
-
-This is approximate, primarily front-facing 2.5D, not an accurate 360° head reconstruction. Landmark Z is inferred, not measured. Hair volume and hidden surfaces cannot be recovered reliably from the single 400px photograph. Existing lighting remains baked into source-derived point intensity. Conservative rotation avoids exposing missing back/side geometry. Safari, real iPhone/Android devices, and sustained battery/GPU performance need manual testing; no Lighthouse score is claimed.
+The generator verifies both the original portrait and model hashes, runs locally, and writes optimized assets to `public/hologram/`. Source-derived diagnostics and intermediate landmarks remain in ignored `tools/hologram/private/`, outside the served assets. No recognition embeddings or facial classifiers are produced.
 
 ## Browser checks
 
@@ -89,12 +67,4 @@ Screenshots and JSON results are written to ignored `private/browser/`. The scri
 
 ## Validation results
 
-- `npm run lint`: passed without warnings.
-- `npx tsc --noEmit`: passed.
-- `npm run build`: passed; home page statically prerendered.
-- `git diff --check`: passed.
-- Portrait decoder checks: 24,000 samples, nonzero depth, correct GPU attribute count, rejection of malformed/truncated assets, and disposal passed.
-- Local Chrome production checks: 1440px WebGL rendering, pointer-position screenshots, reduced motion, context loss, unavailable WebGL, JavaScript disabled, 320/375/390/768px responsive layouts, valid anchors, and mobile menu Escape/focus restoration passed.
-- WebGL error code: 0. Draw calls while offscreen over the sampled interval: 0. Browser console errors: 0. External HTTP requests from the page: 0.
-- The tablet test exercised the static fallback after the simulated context failure; hardware tablet GPU performance is not inferred from this result.
-- Screenshots were inspected locally. These checks do not establish Lighthouse scores or real-device frame-rate/battery guarantees.
+See [V2.md](V2.md) and the latest local `private/browser/report.json`. Browser screenshots are inspected at identical viewport sizes before claiming a visual improvement. The previously documented MediaPipe wheel metadata warning remains confined to offline tooling; the verified ARM64 binary successfully generates the assets.
