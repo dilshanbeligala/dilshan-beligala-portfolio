@@ -1,69 +1,36 @@
-import Image from "next/image";
+import { ArrowDown, ArrowUpRight, Code2, Layers3, Smartphone } from "lucide-react";
+import { MagneticLink } from "@/components/magnetic-link";
+import { SiteHeader } from "@/components/site-header";
+import { HeroStage } from "@/components/hero-stage";
+import { portfolio } from "@/lib/portfolio";
 
 export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+  return <>
+    <a className="skip-link" href="#main">Skip to content</a>
+    <SiteHeader />
+    <main id="main">
+      <HeroStage>
+        <div className="hero-content">
+          <p className="eyebrow entrance"><span className="status-dot" /> ENGINEERING × IMAGINATION</p>
+          <h1 className="entrance name"><span>DILSHAN</span><span>BELIGALA<span className="name-period">.</span></span></h1>
+          <p className="role entrance">SOFTWARE ENGINEER <span> / </span> CREATIVE THINKER</p>
+          <h2 className="hero-message entrance">Engineering intelligent<br />digital experiences.</h2>
+          <p className="hero-description entrance">Building thoughtful software across mobile, web, and AI-assisted development — combining engineering discipline with creative problem-solving.</p>
+          <div className="hero-actions entrance">
+            <MagneticLink className="button button-primary magnetic" href="#projects">Explore My Work <ArrowUpRight size={17} /></MagneticLink>
+            <MagneticLink className="button button-secondary magnetic" href="#contact">Let’s Connect <ArrowUpRight size={17} /></MagneticLink>
+          </div>
+          <a className="linkedin entrance" href={portfolio.linkedin} target="_blank" rel="noopener noreferrer"><span className="linkedin-mark">in</span> Find me on LinkedIn <ArrowUpRight size={13} /><span className="sr-only"> (opens in a new tab)</span></a>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+        <div className="hero-bottom"><a href="#about"><span className="scroll-box"><ArrowDown size={14} /></span> SCROLL TO DISCOVER</a><span className="bottom-note"><i /> BUILDING WHAT’S NEXT</span><span className="edition">PORTFOLIO — 01 / 2026</span></div>
+      </HeroStage>
+      <div className="discipline-strip" aria-label="Areas of focus"><span>THOUGHTFULLY ENGINEERED.</span><span><Smartphone size={16} /> Mobile development</span><span><Code2 size={17} /> Full-stack engineering</span><span><Layers3 size={17} /> AI-assisted development</span><span className="strip-symbol">✳</span></div>
+      <section id="about" className="content-section about-section"><p className="eyebrow">01 / THE ENGINEER</p><div><h2>Curiosity at the core.<br /><span>Craft in every detail.</span></h2><p>I’m Dilshan Beligala, a software engineer working across mobile, web, and AI-assisted development. I care about the space where thoughtful engineering meets an intuitive digital experience.</p></div></section>
+      <section id="experience" className="content-section"><p className="eyebrow">02 / MY APPROACH</p><div><h2>From a clear idea.<br /><span>To a considered experience.</span></h2><div className="approach-list">{[["01", "Understand the problem", "Start with the people, the purpose, and the constraints."], ["02", "Engineer with intention", "Connect mobile and web experiences through thoughtful full-stack development."], ["03", "Build with intelligence", "Bring AI into the development process with human judgment at the center."]].map(([number,title,description])=><article key={number}><span>{number}</span><div><h3>{title}</h3><p>{description}</p></div></article>)}</div></div></section>
+      <section id="projects" className="content-section"><p className="eyebrow">03 / SELECTED WORK</p><div><h2>Good work deserves<br /><span>a closer look.</span></h2><p>Connect with me for project details and a conversation about my work across mobile, web, and AI-assisted development.</p><a className="text-link" href={portfolio.linkedin} target="_blank" rel="noopener noreferrer">Discuss my work on LinkedIn <ArrowUpRight size={17} /><span className="sr-only"> (opens in a new tab)</span></a></div></section>
+      <section id="ai-engineering" className="content-section"><p className="eyebrow">04 / AI ENGINEERING</p><div><h2>Human imagination.<br /><span>Intelligent tools.</span></h2><p>I explore AI-assisted software development as a way to turn ideas into thoughtful software. The focus stays on understanding the problem, reviewing the output, and building experiences that make sense for the people using them.</p><div className="tags"><span>AI-assisted development</span><span>Creative problem-solving</span><span>Engineering discipline</span></div></div></section>
+      <section id="contact" className="contact-section"><p className="eyebrow"><span className="status-dot" /> START A CONVERSATION</p><h2>Let’s build<br />what’s <span>next.</span></h2><MagneticLink className="button button-primary magnetic" href={portfolio.linkedin} target="_blank" rel="noopener noreferrer">Connect on LinkedIn <ArrowUpRight size={19} /><span className="sr-only"> (opens in a new tab)</span></MagneticLink></section>
+    </main>
+    <footer><a className="footer-brand" href="#home">DB<span> / DILSHAN BELIGALA</span></a><p>Thoughtfully designed. Intentionally engineered.</p><a href="#home">Back to top ↑</a></footer>
+  </>;
 }

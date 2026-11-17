@@ -1,0 +1,41 @@
+{
+  "source": "/images/dilshan-portrait.jpg",
+  "sourceSha256": "821873a3c68b9780bce4dcdc292e32fe29bcb1bfb387abc29a30522bc49f5f52",
+  "model": "MediaPipe Face Landmarker float16 v1",
+  "modelSha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+  "landmarks": 478,
+  "surfaceVertices": 468,
+  "surfaceTriangles": 898,
+  "particles": 24000,
+  "contourVertices": 248,
+  "particleStride": 20,
+  "positionMin": [
+    -0.9209,
+    -1.40651,
+    -0.65
+  ],
+  "positionMax": [
+    0.9821,
+    1.39122,
+    0.28908
+  ],
+  "limitations": "Approximate front-facing 2.5D. Landmark depth is inferred, not measured. Hair/ears/neck depth is extrapolated from a source-specific silhouette. No hidden surfaces reconstructed.",
+  "assets": {
+    "facial-particles.bin": {
+      "bytes": 480016,
+      "sha256": "5f6c4de9ed9c774423f9839468db0d3695008f54eaf672d4b3cb09e2c0ac7f4c"
+    },
+    "facial-contours.bin": {
+      "bytes": 2976,
+      "sha256": "08dfda5659489f5d1071326c4c32f4f6dd1cf38c1a57a501fdcb6399c5f97c48"
+    },
+    "portrait-fallback.webp": {
+      "bytes": 112028,
+      "sha256": "8462166039d0cc71a68eb00511c5ae2225e69e05bd0b95ee2913eb37e17c7889"
+    },
+    "facial-surface.glb": {
+      "bytes": 11744,
+      "sha256": "557118789f393c3b753af2ec18d0f9c0df8d508f5e70f4b73e0a0d747e8ef99a"
+    }
+  }
+}

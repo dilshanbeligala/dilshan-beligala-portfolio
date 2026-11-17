@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Offline portrait reconstruction and local caches (never shipped)
+/.venv-hologram/
+/.cache/
+/tools/hologram/models/*.task
+/tools/hologram/private/
