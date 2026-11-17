@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "source": "/images/dilshan-portrait.jpg",
   "sourceSha256": "821873a3c68b9780bce4dcdc292e32fe29bcb1bfb387abc29a30522bc49f5f52",
   "model": "MediaPipe Face Landmarker float16 v1",
@@ -11,7 +11,7 @@
   "surfaceRows": 99,
   "particles": 15641,
   "particleStride": 24,
-  "contourVertices": 248,
+  "contourVertices": 1176,
   "audit": {
     "landmarkDepthRmsePixels": 1.451808102811553,
     "depthRangePixels": [
@@ -23,8 +23,8 @@
   "limitations": "Source-aligned approximate 2.5D; inferred depth compressed to preserve likeness. Hair/ear/neck depth is conservative. The photo remains 400x400; no hidden or enhanced facial details are generated.",
   "assets": {
     "facial-contours.bin": {
-      "bytes": 2976,
-      "sha256": "3b1fe58b95c9ef0869b10d85b27eede3f671d624db2d0530350903ac8b9e31ba"
+      "bytes": 14112,
+      "sha256": "81b6d3942ff67c92d043951714813a60c50bf4897f9c7ba92c757248079c595f"
     },
     "facial-detail.bin": {
       "bytes": 171088,
@@ -42,9 +42,13 @@
       "bytes": 28476,
       "sha256": "38c74202d2602d13616b728baff4f3390fdcbf688bf2ad1587a00cdab64aff84"
     },
-    "portrait-fallback-v2.webp": {
-      "bytes": 55788,
-      "sha256": "4dfbb8199e2feb05bf1eacfe7f23d1e4fa692084b5dee074e3a8a7f8c46d9886"
+    "portrait-digital-v3.webp": {
+      "bytes": 137716,
+      "sha256": "c559f501604d5ea213ea1237678e582e4a58277a77a7564877d7507b6a2207d1"
+    },
+    "portrait-real-v3.webp": {
+      "bytes": 43114,
+      "sha256": "a15546f1911a4414335227617ff8465d6f980357cc88004b6767f6bebddd64b2"
     }
   }
 }

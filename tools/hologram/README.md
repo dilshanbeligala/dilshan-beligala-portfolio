@@ -51,7 +51,7 @@ MediaPipe on macOS needs a graphics context for image preprocessing even with CP
 
 ## V2 reconstruction, formats, and renderer
 
-The current implementation is V2. Read [V2.md](V2.md) for the audit, interpolation and sampling methods, depth-aligned photographic layer, binary formats, quality policy, diagnostics, measurements, checkpoint, and limitations. The original V1 implementation is recoverable at Git commit `e3c0102`.
+The current implementation is Digital Identity / Hold to Reveal. Read [HOLD_REVEAL.md](HOLD_REVEAL.md) for its state materials, controller, input behavior, alignment, assets, and validation. Read [V2.md](V2.md) for the audit, interpolation and sampling methods, depth-aligned photographic layer, binary formats, quality policy, diagnostics, measurements, checkpoint, and limitations. The original V1 implementation is recoverable at Git commit `e3c0102`.
 
 The generator verifies both the original portrait and model hashes, runs locally, and writes optimized assets to `public/hologram/`. Source-derived diagnostics and intermediate landmarks remain in ignored `tools/hologram/private/`, outside the served assets. No recognition embeddings or facial classifiers are produced.
 
@@ -67,4 +67,4 @@ Screenshots and JSON results are written to ignored `private/browser/`. The scri
 
 ## Validation results
 
-See [V2.md](V2.md) and the latest local `private/browser/report.json`. Browser screenshots are inspected at identical viewport sizes before claiming a visual improvement. The previously documented MediaPipe wheel metadata warning remains confined to offline tooling; the verified ARM64 binary successfully generates the assets.
+See [HOLD_REVEAL.md](HOLD_REVEAL.md), `private/hold/report.json`, and the general regression report at `private/browser/report.json`. Browser screenshots are inspected at identical viewport sizes before claiming a visual improvement. The previously documented MediaPipe wheel metadata warning remains confined to offline tooling; the verified ARM64 binary successfully generates the assets.

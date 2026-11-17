@@ -2,7 +2,10 @@
 
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { Component, useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Component, useCallback, useEffect, useRef, useState, type ReactNode, type RefObject, useSyncExternalStore, useId } from "react";
+import { motion, useTransform } from "motion/react";
+import { Eye, RotateCcw } from "lucide-react";
+import { usePortraitReveal } from "./use-portrait-reveal";
 import { hologram, type PointerTarget, type Quality } from "@/lib/hologram/config";
 
 const HologramScene = dynamic(() => import("./hologram-scene"), { ssr: false });
@@ -14,8 +17,15 @@ class RenderBoundary extends Component<{ children: ReactNode; onFailure: () => v
   render() { return this.state.failed ? null : this.props.children; }
 }
 
+const subscribeHydration = () => () => {};
+
 export function HolographicPortrait({ pointer }: { pointer: RefObject<PointerTarget> }) {
   const host = useRef<HTMLDivElement>(null);
+  const reveal = usePortraitReveal();
+  const instructionId = useId();
+  const keyboardHelpId = useId();
+  const hydrated = useSyncExternalStore(subscribeHydration, () => true, () => false);
+  const digitalOpacity = useTransform(reveal.progress, value => 1 - value);
   const [quality, setQuality] = useState<Quality | null>(null);
   const [visible, setVisible] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -87,13 +97,22 @@ export function HolographicPortrait({ pointer }: { pointer: RefObject<PointerTar
   // Keep an initialized scene mounted offscreen, but stop its frame loop.
   const shouldRender = quality !== null && !failed && initialized;
 
-  return <div ref={host} className={`hologram-art ${ready && quality && !failed ? "hologram-ready" : ""}`} role="img" aria-label="Holographic particle portrait of Dilshan Beligala, reconstructed from his photograph" data-quality={quality ?? "static"}>
+  return <div ref={host} className={`hologram-art ${ready && quality && !failed ? "hologram-ready" : ""}`} role="group" aria-label="Interactive digital identity of Dilshan Beligala" data-revealed={reveal.requested} data-quality={quality ?? "static"}>
     <div className="hologram-halo" aria-hidden="true" />
     <div className="hologram-reticle" aria-hidden="true"><i /><i /><i /><i /></div>
-    <div className="hologram-fallback"><Image src={hologram.fallbackUrl} alt="" width={768} height={768} sizes="(max-width: 700px) 100vw, 56vw" priority /></div>
-    {shouldRender && <div className="hologram-canvas" aria-hidden="true"><RenderBoundary onFailure={fail}><HologramScene pointer={pointer} quality={quality} active={visible && tabVisible} onReady={markReady} onFailure={fail} onDegrade={degrade} onPromote={promote} /></RenderBoundary></div>}
+    <div className="hologram-fallback" aria-hidden="true">
+      <motion.div className="portrait-static-layer" style={{ opacity: digitalOpacity }}><Image src={hologram.fallbackUrl} alt="" width={768} height={768} sizes="(max-width: 700px) 100vw, 56vw" priority draggable={false} /></motion.div>
+      <motion.div className="portrait-static-layer" style={{ opacity: reveal.progress }}><Image src={hologram.realFallbackUrl} alt="" width={768} height={768} sizes="(max-width: 700px) 100vw, 56vw" priority draggable={false} /></motion.div>
+    </div>
+    {shouldRender && <div className="hologram-canvas" aria-hidden="true"><RenderBoundary onFailure={fail}><HologramScene pointer={pointer} reveal={reveal.progress} quality={quality} active={visible && tabVisible} onReady={markReady} onFailure={fail} onDegrade={degrade} onPromote={promote} /></RenderBoundary></div>}
+    <button type="button" className="portrait-hold" disabled={!hydrated} aria-label="Hold to reveal Dilshan Beligala’s real portrait" aria-describedby={`${instructionId} ${keyboardHelpId}`} {...reveal.holdHandlers} />
+    <p id={keyboardHelpId} className="sr-only">Hold Enter or Space to reveal. Release to return to the hologram. Alternatively, use the reveal toggle.</p>
+    <div className="portrait-instructions" id={instructionId}>
+      <span className="portrait-instruction-title" aria-live="polite">{reveal.requested ? "REAL IDENTITY" : <><span className="instruction-pointer">HOLD TO REVEAL</span><span className="instruction-touch">TOUCH & HOLD TO REVEAL</span></>}</span>
+      <span className="portrait-instruction-copy">{reveal.requested ? reveal.latched ? "Use the toggle to return to the digital world." : "Release to return to the digital world." : "Discover the human behind the code."}</span>
+      <button type="button" className="portrait-toggle" disabled={!hydrated} aria-pressed={reveal.latched} aria-label="Keep real portrait revealed" onClick={reveal.toggle} onBlur={event => { if (!host.current?.contains(event.relatedTarget)) reveal.reset(); }}>{reveal.latched ? <RotateCcw size={12} /> : <Eye size={12} />}<span>{reveal.latched ? "Return to hologram" : "Reveal without holding"}</span></button>
+    </div>
     <div className="hologram-topline" aria-hidden="true"><span className="status-dot" /> DILSHAN // DIGITAL CONSCIOUSNESS</div>
     <div className="hologram-side-label" aria-hidden="true">HUMAN IMAGINATION.<br /><b>DIGITAL EXPRESSION.</b></div>
-    <div className="hologram-caption" aria-hidden="true"><span>PORTRAIT STUDY / 01</span><span>IDENTITY, REIMAGINED <i>↗</i></span></div>
   </div>;
 }

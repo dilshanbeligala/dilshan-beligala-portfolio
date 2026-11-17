@@ -1,14 +1,16 @@
 "use client";
 
+import type { MotionValue } from "motion/react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { AdditiveBlending, BufferAttribute, BufferGeometry, Group, MathUtils, ShaderMaterial, SRGBColorSpace, Texture } from "three";
+import { AdditiveBlending, BufferAttribute, BufferGeometry, Group, MathUtils, ShaderMaterial, LineBasicMaterial, SRGBColorSpace, Texture } from "three";
 import { hologram, qualityPresets, type PointerTarget, type Quality } from "@/lib/hologram/config";
 import { createAmbientGeometry, createDetailGeometry, createFaceGeometry, decodePortrait, type PortraitData } from "@/lib/hologram/geometry";
 import { detailFragmentShader, detailVertexShader, faceFragmentShader, faceVertexShader } from "@/lib/hologram/shaders";
 
 type SceneProps = {
   pointer: RefObject<PointerTarget>;
+  reveal: MotionValue<number>;
   quality: Quality;
   active: boolean;
   onReady: () => void;
@@ -35,10 +37,11 @@ function RendererLifecycle({ onFailure }: Pick<SceneProps, "onFailure">) {
   return null;
 }
 
-function Sculpture({ data, texture, pointer, quality, onReady, onDegrade, onPromote }: Omit<SceneProps, "active" | "onFailure"> & { data: PortraitData; texture: Texture }) {
+function Sculpture({ data, texture, pointer, reveal, quality, onReady, onDegrade, onPromote }: Omit<SceneProps, "active" | "onFailure"> & { data: PortraitData; texture: Texture }) {
   const group = useRef<Group>(null);
   const ambient = useRef<Group>(null);
   const material = useRef<ShaderMaterial>(null);
+  const contourMaterial = useRef<LineBasicMaterial>(null);
   const detailMaterial = useRef<ShaderMaterial>(null);
   const elapsed = useRef(0);
   const announced = useRef(false);
@@ -53,9 +56,9 @@ function Sculpture({ data, texture, pointer, quality, onReady, onDegrade, onProm
     return geometry;
   }, [data]);
   const atmosphere = useMemo(() => createAmbientGeometry(80), []);
-  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uAssembly: { value: 0 }, uPointSize: { value: 1.7 }, uDpr: { value: 1 } }), []);
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uAssembly: { value: 0 }, uPointSize: { value: 1.7 }, uDpr: { value: 1 }, uReveal: { value: 0 } }), []);
 
-  const detailUniforms = useMemo(() => ({ uPortrait: { value: texture }, uTime: { value: 0 }, uAssembly: { value: 0 } }), [texture]);
+  const detailUniforms = useMemo(() => ({ uPortrait: { value: texture }, uTime: { value: 0 }, uAssembly: { value: 0 }, uReveal: { value: 0 } }), [texture]);
 
   useEffect(() => {
     face.setDrawRange(0, Math.min(preset.particles, data.seeds.length));
@@ -70,14 +73,17 @@ function Sculpture({ data, texture, pointer, quality, onReady, onDegrade, onProm
     if (material.current) {
       const uniforms = material.current.uniforms;
       uniforms.uTime.value = time;
+      uniforms.uReveal.value = reveal.get();
       uniforms.uAssembly.value = MathUtils.smoothstep(time / hologram.assemblySeconds, 0, 1);
       uniforms.uPointSize.value = preset.pointSize * Math.min(size.height / 600, 1.3);
       uniforms.uDpr.value = gl.getPixelRatio();
     }
     if (detailMaterial.current) {
       detailMaterial.current.uniforms.uTime.value = time;
+      detailMaterial.current.uniforms.uReveal.value = reveal.get();
       detailMaterial.current.uniforms.uAssembly.value = MathUtils.smoothstep(time / hologram.assemblySeconds, 0, 1);
     }
+    if (contourMaterial.current) contourMaterial.current.opacity = .20 * (1 - reveal.get());
     if (group.current) {
       group.current.rotation.y = MathUtils.damp(group.current.rotation.y, pointer.current.x * hologram.horizontalRotation, 5, delta);
       group.current.rotation.x = MathUtils.damp(group.current.rotation.x, -pointer.current.y * hologram.verticalRotation, 5, delta);
@@ -112,7 +118,7 @@ function Sculpture({ data, texture, pointer, quality, onReady, onDegrade, onProm
         <shaderMaterial ref={material} uniforms={uniforms} vertexShader={faceVertexShader} fragmentShader={faceFragmentShader} transparent depthWrite={false} depthTest toneMapped={false} />
       </points>
       <lineSegments geometry={contours} renderOrder={2}>
-        <lineBasicMaterial color="#79aee9" transparent opacity={.012} depthWrite={false} blending={AdditiveBlending} toneMapped={false} />
+        <lineBasicMaterial ref={contourMaterial} color="#a3f4ff" transparent opacity={.20} depthWrite={false} blending={AdditiveBlending} toneMapped={false} />
       </lineSegments>
     </group>
     <group ref={ambient}>
@@ -172,7 +178,7 @@ export default function HologramScene(props: SceneProps) {
   >
     <ResponsiveCamera />
     <RendererLifecycle onFailure={onFailure} />
-    <Sculpture data={assets.data} texture={assets.texture} pointer={props.pointer} quality={props.quality} onReady={props.onReady} onDegrade={props.onDegrade} onPromote={props.onPromote} />
+    <Sculpture data={assets.data} texture={assets.texture} pointer={props.pointer} reveal={props.reveal} quality={props.quality} onReady={props.onReady} onDegrade={props.onDegrade} onPromote={props.onPromote} />
   </Canvas>;
 }
 

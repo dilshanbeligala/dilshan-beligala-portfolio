@@ -115,6 +115,7 @@ def feature_map(points, rgb, alpha):
     # Actual detected nose landmarks, not hand-drawn facial proportions.
     for chain in [[168,6,197,195,5,4,1,19,94,2], [98,97,2,326,327]]:
         draw.line([tuple(points[i,:2]) for i in chain], fill=255, width=2)
+        connections.update(tuple(sorted(pair)) for pair in zip(chain, chain[1:]))
     guided = np.clip(gaussian_filter(np.asarray(lines)/255., 2.2)*2.4, 0, 1)
     lum = rgb @ np.array([.2126,.7152,.0722])
     gy, gx = np.gradient(gaussian_filter(lum,.6))
@@ -261,7 +262,7 @@ def previews(image,rgb,alpha,feature,depth,center_z,positions,colors,sizes,featu
     from PIL import ImageChops
     final=ImageChops.add(detail_canvas,Image.blend(Image.new('RGB',neutral.size),neutral,.20))
     final=ImageChops.add(final,Image.new('RGB',final.size,'#05060b'))
-    final.save(OUTPUT/'portrait-fallback-v2.webp',quality=95,method=6)
+
     final.save(PRIVATE/'hybrid-frontal.webp',quality=95)
     entries=[('SOURCE',image.crop(CROP)),('LANDMARKS',Image.open(PRIVATE/'landmark-check.jpg').crop(tuple(v*2 for v in CROP))),
         ('SURFACE',Image.fromarray(np.uint8(np.clip(relief,0,1)*255)).crop(CROP)),('PARTICLES / NO FX',neutral.crop((190,90,600,675))),('HYBRID / NO FX',final.crop((190,90,600,675)))]
@@ -273,6 +274,45 @@ def previews(image,rgb,alpha,feature,depth,center_z,positions,colors,sizes,featu
         draw.text((i*280+20,15),label,fill='#b9cad7')
     sheet.save(PRIVATE/'diagnostic-comparison.jpg',quality=95)
 
+
+
+def reveal_previews(image,rgb,alpha,feature,depth,center_z,positions,colors,sizes,features,contours):
+    """Exactly aligned digital/real static states for touch, reduced motion and failure."""
+    linear=srgb_to_linear(rgb)
+    lum=linear@np.array([.2126,.7152,.0722])
+    level=np.floor(np.clip(lum,0,.999)*6)/5
+    gy,gx=np.gradient(gaussian_filter(lum,.45))
+    edge=np.minimum(np.hypot(gx,gy)*4,.65)
+    digital=np.array([.008,.035,.065])+level[:,:,None]*np.array([.10,.31,.40])*.9
+    digital+=np.array([.10,.35,.43])*edge[:,:,None]*(.3+.7*feature[:,:,None])
+    rgba=np.dstack((np.uint8(np.clip(linear_to_srgb(digital),0,1)*255),np.uint8(alpha*(.32+.14*feature)*255)))
+    transform=(SCALE/192,0,CENTER[0]-384*SCALE/192,0,SCALE/192,CENTER[1]-384*SCALE/192)
+    def project(pixels):
+        return Image.fromarray(pixels).transform((768,768),Image.Transform.AFFINE,transform,resample=Image.Resampling.BICUBIC)
+    base=project(rgba)
+    layer=Image.new('RGBA',(768,768))
+    draw=ImageDraw.Draw(layer)
+    for p,c,size,f in zip(positions,colors,sizes,features):
+        value=float(srgb_to_linear(c)@np.array([.2126,.7152,.0722]))**.8
+        cyan=np.array([.12,.72,.93])*(.025+value*1.15)
+        color=cyan*(1-f*.36)+np.array([.78,.95,1.])*value*f*.36
+        fill=tuple(np.uint8(np.clip(linear_to_srgb(color),0,1)*255))+(185,)
+        x,y=384+p[0]*192,384-p[1]*192
+        radius=size*.62
+        draw.ellipse((x-radius,y-radius,x+radius,y+radius),fill=fill)
+    base=Image.alpha_composite(base,layer)
+    lines=Image.new('RGBA',base.size);draw=ImageDraw.Draw(lines)
+    for a,b in contours.reshape(-1,2,3):
+        draw.line([(384+a[0]*192,384-a[1]*192),(384+b[0]*192,384-b[1]*192)],fill=(139,232,255,48),width=1)
+    digital=Image.alpha_composite(base,lines)
+    original=np.dstack((np.asarray(image),np.uint8(alpha*255)))
+    real=project(original)
+    digital.save(OUTPUT/'portrait-digital-v3.webp',quality=94,method=6)
+    real.save(OUTPUT/'portrait-real-v3.webp',quality=97,method=6)
+    sheet=Image.new('RGB',(1536,820),'#05060b')
+    sheet.paste(digital,(0,45),digital);sheet.paste(real,(768,45),real)
+    draw=ImageDraw.Draw(sheet);draw.text((35,15),'DIGITAL IDENTITY / DEFAULT',fill='#b8dbea');draw.text((803,15),'REAL IDENTITY / WHILE HOLDING',fill='#b8dbea')
+    sheet.save(PRIVATE/'hold-reveal-states.jpg',quality=95)
 
 def main():
     assert sha(SOURCE)==SOURCE_SHA,'Reinspect and retrace if the source changes.'
@@ -294,9 +334,28 @@ def main():
     # Contours now sample the exact same smoothed depth surface as the detail mesh.
     xy=np.array([points[i,:2] for pair in connections for i in pair])
     contours=world(xy[:,0],xy[:,1],sample(depth,xy[:,0],xy[:,1]),center_z).astype('<f4')
+    # Source-gradient strands keep hair and mustache detail specific to this photo.
+    edges=cv2.Canny(np.asarray(image),60,120)
+    yy,xx=np.mgrid[:400,:400]
+    region=(yy<103)|((yy>140)&(yy<179)&(xx>170)&(xx<244))
+    edges[(alpha<.8)|(~region)]=0
+    strokes,_=cv2.findContours(edges,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
+    extras=[]
+    for stroke in strokes:
+        length=cv2.arcLength(stroke,False)
+        if length<6 or length>110:continue
+        points2=cv2.approxPolyDP(stroke,.5,False).reshape(-1,2)
+        for a,b in zip(points2,points2[1:]):
+            if np.linalg.norm(a-b)>7:continue
+            extras.extend([a,b])
+        if len(extras)>1400:break
+    if extras:
+        xy2=np.array(extras)
+        contours=np.concatenate((contours,world(xy2[:,0],xy2[:,1],sample(depth,xy2[:,0],xy2[:,1]),center_z).astype('<f4')))
     (OUTPUT/'facial-contours.bin').write_bytes(contours.tobytes())
     previews(image,rgb,alpha,feature,depth,center_z,positions,colors,sizes,features)
-    summary={'version':2,'source':'/images/dilshan-portrait.jpg','sourceSha256':SOURCE_SHA,'model':'MediaPipe Face Landmarker float16 v1','modelSha256':MODEL_SHA,
+    reveal_previews(image,rgb,alpha,feature,depth,center_z,positions,colors,sizes,features,contours)
+    summary={'version':3,'source':'/images/dilshan-portrait.jpg','sourceSha256':SOURCE_SHA,'model':'MediaPipe Face Landmarker float16 v1','modelSha256':MODEL_SHA,
         'landmarks':len(points),'surfaceVertices':len(vertices),'surfaceTriangles':len(indices)//3,'surfaceColumns':cols,'surfaceRows':rows,
         'particles':len(positions),'particleStride':24,'contourVertices':len(contours),'audit':audit,
         'sampling':'Deterministic scrambled Halton candidates, feature-weighted rejection, local spacing exclusion; no replacement clumps.',

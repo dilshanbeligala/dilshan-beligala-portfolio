@@ -4,8 +4,7 @@ import assert from 'node:assert/strict';
 
 const output = new URL('./private/browser/', import.meta.url);
 await mkdir(output, { recursive: true });
-const pages = await (await fetch('http://127.0.0.1:9223/json')).json();
-const page = pages.find(page => page.type === 'page');
+const page = await (await fetch('http://127.0.0.1:9223/json/new?about:blank', { method: 'PUT' })).json();
 assert(page, 'Start an isolated local Chrome debugging session on port 9223.');
 const socket = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
@@ -128,4 +127,4 @@ try {
   assert.equal(report.externalPageRequests.length, 0, 'Unexpected external network request');
   await writeFile(new URL('report.json', output), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report, null, 2));
-} finally { socket.close(); }
+} finally { await call('Page.close').catch(() => {}); socket.close(); }

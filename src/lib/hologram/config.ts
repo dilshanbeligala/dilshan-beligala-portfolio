@@ -15,5 +15,6 @@ export const hologram = {
   detailUrl: "/hologram/facial-detail.bin",
   textureUrl: "/hologram/portrait-detail.webp",
   contourUrl: "/hologram/facial-contours.bin",
-  fallbackUrl: "/hologram/portrait-fallback-v2.webp",
+  fallbackUrl: "/hologram/portrait-digital-v3.webp",
+  realFallbackUrl: "/hologram/portrait-real-v3.webp",
 };
