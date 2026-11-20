@@ -1,12 +1,14 @@
 import { BufferAttribute, BufferGeometry } from "three";
 
-export type PortraitData = {
+type PortraitPoints = {
   positions: Float32Array;
   colors: Uint8Array;
   sizes: Float32Array;
   seeds: Float32Array;
   features: Float32Array;
-  contours: Float32Array;
+};
+
+export type PortraitData = PortraitPoints & {
   surface: { positions: Float32Array; uv: Float32Array; features: Float32Array; indices: Uint16Array };
 };
 
@@ -19,14 +21,14 @@ function unit(value: number) {
   return value;
 }
 
-export function decodePortrait(particles: ArrayBuffer, contours: ArrayBuffer, surface: ArrayBuffer): PortraitData {
+export function decodePoints(particles: ArrayBuffer): PortraitPoints {
   const view = new DataView(particles);
   if (view.byteLength < 16 || view.getUint32(0, false) !== 0x44424850 || view.getUint32(4, true) !== 2) {
     throw new Error("Unsupported portrait asset.");
   }
   const count = view.getUint32(8, true);
   const stride = view.getUint32(12, true);
-  if (count < 1000 || count > 30000 || stride !== 24 || particles.byteLength !== 16 + count * stride || contours.byteLength % 24 !== 0) {
+  if (count < 1000 || count > 30000 || stride !== 24 || particles.byteLength !== 16 + count * stride) {
     throw new Error("Invalid portrait buffer dimensions.");
   }
   const positions = new Float32Array(count * 3);
@@ -44,8 +46,10 @@ export function decodePortrait(particles: ArrayBuffer, contours: ArrayBuffer, su
     seeds[i] = unit(view.getFloat32(offset + 16, true));
     features[i] = unit(view.getFloat32(offset + 20, true));
   }
-  const contourPositions = new Float32Array(contours);
-  contourPositions.forEach(coordinate);
+  return { positions, colors, sizes, seeds, features };
+}
+
+export function decodePortrait(particles: ArrayBuffer, surface: ArrayBuffer): PortraitData {
   const mesh = new DataView(surface);
   if (mesh.byteLength < 16 || mesh.getUint32(0, false) !== 0x44424853 || mesh.getUint32(4, true) !== 1) throw new Error("Unsupported detail surface.");
   const columns = mesh.getUint32(8, true), rows = mesh.getUint32(12, true);
@@ -69,17 +73,28 @@ export function decodePortrait(particles: ArrayBuffer, contours: ArrayBuffer, su
       indices.set([a, c, b, b, c, d], cursor); cursor += 6;
     }
   }
-  return { positions, colors, sizes, seeds, features, contours: contourPositions,
+  return { ...decodePoints(particles),
     surface: { positions: surfacePositions, uv, features: surfaceFeatures, indices } };
 }
 
-export function createFaceGeometry(data: PortraitData) {
+export function createFaceGeometry(data: PortraitPoints, surface: PortraitData["surface"]) {
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(data.positions, 3));
   geometry.setAttribute("aTint", new BufferAttribute(data.colors, 3, true));
   geometry.setAttribute("aSize", new BufferAttribute(data.sizes, 1));
   geometry.setAttribute("aSeed", new BufferAttribute(data.seeds, 1));
   geometry.setAttribute("aFeature", new BufferAttribute(data.features, 1));
+  const { positions, uv } = surface;
+  const last = positions.length - 3;
+  const uvLast = uv.length - 2;
+  const scaleX = (uv[uvLast] - uv[0]) / (positions[last] - positions[0]);
+  const scaleY = (uv[uvLast + 1] - uv[1]) / (positions[last + 1] - positions[1]);
+  const pointUv = new Float32Array(data.seeds.length * 2);
+  for (let i = 0; i < data.seeds.length; i++) {
+    pointUv[i * 2] = uv[0] + (data.positions[i * 3] - positions[0]) * scaleX;
+    pointUv[i * 2 + 1] = uv[1] + (data.positions[i * 3 + 1] - positions[1]) * scaleY;
+  }
+  geometry.setAttribute("uv", new BufferAttribute(pointUv, 2));
   geometry.computeBoundingSphere();
   return geometry;
 }
@@ -88,23 +103,7 @@ export function createDetailGeometry(data: PortraitData) {
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new BufferAttribute(data.surface.positions, 3));
   geometry.setAttribute("uv", new BufferAttribute(data.surface.uv, 2));
-  geometry.setAttribute("aFeature", new BufferAttribute(data.surface.features, 1));
   geometry.setIndex(new BufferAttribute(data.surface.indices, 1));
-  geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
-  return geometry;
-}
-
-export function createAmbientGeometry(count: number) {
-  const positions = new Float32Array(count * 3);
-  for (let i = 0; i < count; i++) {
-    const angle = i * 2.399963;
-    const radius = 1.15 + (i % 11) / 12;
-    positions[i * 3] = Math.cos(angle) * radius;
-    positions[i * 3 + 1] = Math.sin(angle) * radius;
-    positions[i * 3 + 2] = Math.sin(i * 1.91) * .55 - .5;
-  }
-  const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new BufferAttribute(positions, 3));
   return geometry;
 }

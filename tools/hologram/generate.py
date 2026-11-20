@@ -23,7 +23,7 @@ OUTPUT = ROOT / 'public/hologram'
 PRIVATE = ROOT / 'tools/hologram/private'
 MODEL_SHA = '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff'
 SOURCE_SHA = '821873a3c68b9780bce4dcdc292e32fe29bcb1bfb387abc29a30522bc49f5f52'
-CROP = (138, 28, 280, 224)
+CROP = (104, 24, 310, 244)
 CENTER = (207., 132.)
 SCALE = 70.
 
@@ -70,60 +70,104 @@ def detect(image):
     return points
 
 
-def segmentation(image):
-    # Photo-specific seed contour from V1. GrabCut refines only its boundary;
-    # neither another head template nor a segmentation model is introduced.
-    outline = [(146,110),(143,96),(143,85),(146,73),(149,64),(155,54),(164,47),
-        (166,35),(171,42),(177,36),(185,39),(193,35),(205,39),(217,37),(230,41),
-        (241,43),(250,51),(260,55),(268,61),(276,62),(269,73),(274,71),
-        (268,83),(266,96),(262,111),(262,121),(267,119),(268,130),(263,142),
-        (256,147),(253,162),(246,178),(239,188),(235,204),(239,218),(223,227),
-        (201,231),(180,220),(175,207),(174,191),(164,179),(157,161),(153,147),
-        (148,142),(146,133),(144,122),(146,117)]
+def segmentation(rgb):
+    # Source-specific trimap. Trace the ears and jacket separately from the hair.
+    outline = [(148,119),(149,114),(149,106),(147,99),(143,90),(144,79),(142,74),
+        (145,70),(149,63),(155,60),(158,53),(164,49),(170,43),(174,40),
+        (173,34),(178,38),(181,38),(189,36),(197,37),(204,38),(216,41),
+        (227,44),(238,46),(247,51),(253,57),(259,64),(263,67),(269,62),
+        (267,69),(275,66),(271,73),(278,72),(269,80),(266,87),(261,99),
+        (258,113),(256,123),(260,124),(263,129),(263,136),(260,145),
+        (256,151),(250,157),(242,160),(241,168),(240,177),(241,185),
+        (246,194),(253,201),(264,209),(279,215),(305,221),(330,233),
+        (330,260),(77,260),(77,229),(106,223),(128,217),(144,211),
+        (154,203),(161,196),(166,185),(166,176),(162,168),(159,160),
+        (158,156),(152,152),(149,147),(148,142),(147,137),(146,132),(147,126),(147,122)]
     seed_image = Image.new('L', (400, 400))
     ImageDraw.Draw(seed_image).polygon(outline, fill=1)
-    seed = np.asarray(seed_image).astype('uint8')
-    expanded = cv2.dilate(seed, np.ones((9,9), 'uint8'))
-    core = cv2.erode(seed, np.ones((5,5), 'uint8'))
-    labels = np.full((400,400), cv2.GC_BGD, 'uint8')
-    labels[expanded > 0] = cv2.GC_PR_BGD
-    labels[seed > 0] = cv2.GC_PR_FGD
-    labels[core > 0] = cv2.GC_FGD
-    cv2.setRNGSeed(1989)
-    cv2.grabCut(np.asarray(image), labels, None, np.zeros((1,65)), np.zeros((1,65)), 4, cv2.GC_INIT_WITH_MASK)
-    mask = ((labels == cv2.GC_FGD) | (labels == cv2.GC_PR_FGD)).astype(float)
-    # The exact source mask is kept within a tightly bounded original-photo crop.
+    seed = np.asarray(seed_image).astype(bool)
+    inside = distance_transform_edt(seed)
+    outside = distance_transform_edt(~seed)
+    distance = np.where(seed, inside - .5, .5 - outside)
     yy, xx = np.mgrid[:400, :400]
-    mask *= (xx >= CROP[0]) & (xx <= CROP[2]) & (yy >= CROP[1]) & (yy <= CROP[3])
-    alpha = gaussian_filter(mask, .55) * np.clip((218-yy)/23, 0, 1)
-    Image.fromarray(np.uint8(alpha*255)).save(PRIVATE / 'segmentation.png')
-    return alpha
+    # Keep a wider unknown band where the source contains fine hair.
+    band = np.where(yy < 105, 3.6, 1.8)
+    foreground = distance >= band
+    background = distance <= -band
+    _, near_fg = distance_transform_edt(~foreground, return_indices=True)
+    _, near_bg = distance_transform_edt(~background, return_indices=True)
+
+    linear = srgb_to_linear(rgb)
+    fg = linear[tuple(near_fg)]
+    bg = linear[tuple(near_bg)]
+    difference = fg - bg
+    separation = np.sum(difference**2, axis=2)
+    color_alpha = np.sum((linear - bg) * difference, axis=2) / np.maximum(separation, 1e-5)
+    shape_alpha = smoothstep(-band, band, distance)
+    # The traced boundary anchors low-contrast edges. Strong color separation
+    # allows the observed source pixel to decide where the antialiasing falls.
+    confidence = .86 * smoothstep(.004, .078, separation)
+    confidence *= 1 - smoothstep(band * .55, band, np.abs(distance))
+    alpha = np.clip(shape_alpha * (1 - confidence) + np.clip(color_alpha, 0, 1) * confidence, 0, 1)
+    alpha[foreground] = 1
+    alpha[background] = 0
+
+    # The backdrop is teal above the collar and foliage-green below it.
+    # Reject that chroma only in the narrow border; keep interior source color.
+    green = rgb[:, :, 1] - rgb[:, :, 0]
+    spill = smoothstep(.015, .065, green) * np.where(yy > 186, .45, 1)
+    edge = 1 - smoothstep(.5, band + 1.1, distance)
+    alpha *= 1 - spill * edge
+
+    # Invert the observed composite in linear light. Regularize uncertain pixels
+    # toward the nearby foreground, which also pads color beyond the alpha edge.
+    estimated = (linear - (1 - alpha[:, :, None]) * bg) / np.maximum(alpha[:, :, None], .10)
+    support = smoothstep(.04, .70, alpha)[:, :, None]
+    clean = np.clip(fg * (1 - support) + np.clip(estimated, 0, 1) * support, 0, 1)
+    clean[foreground] = linear[foreground]
+
+    # The source jacket extends out of the photo. Dissolve the bust through the
+    # jacket below the neck, with a rounded shoulder falloff at the crop edges.
+    shoulders = (xx - CENTER[0]) / 100
+    cloth = 1 - smoothstep(0, 1, (yy - 216) / 25 + shoulders**2 * .84)
+    alpha *= np.where(yy > 183, 1 + (cloth - 1) * smoothstep(183, 217, yy), 1)
+    alpha *= (xx > CROP[0]) & (xx < CROP[2]) & (yy > CROP[1]) & (yy < CROP[3])
+    Image.fromarray(np.rint(alpha * 255).astype('u1')).save(PRIVATE / 'segmentation.png')
+    rgba = Image.fromarray(np.rint(np.dstack((linear_to_srgb(clean), alpha)) * 255).astype('u1'))
+    rgba = rgba.crop((CROP[0], CROP[1], CROP[2] + 1, CROP[3] + 1)).resize((621, 663), Image.Resampling.LANCZOS)
+    for name, color in [('dark', '#080d18'), ('light', '#e7edf1')]:
+        backdrop = Image.new('RGBA', rgba.size, color)
+        Image.alpha_composite(backdrop, rgba).convert('RGB').save(PRIVATE / f'matte-{name}.png')
+    return alpha, clean
 
 
 def feature_map(points, rgb, alpha):
-    lines = Image.new('L', (400,400))
-    draw = ImageDraw.Draw(lines)
-    connections = set()
-    for name in ['FACE_LANDMARKS_LEFT_EYE', 'FACE_LANDMARKS_RIGHT_EYE',
-                 'FACE_LANDMARKS_LEFT_EYEBROW', 'FACE_LANDMARKS_RIGHT_EYEBROW',
-                 'FACE_LANDMARKS_LIPS', 'FACE_LANDMARKS_FACE_OVAL']:
-        weight = 145 if 'OVAL' in name else 255
-        for pair in getattr(mp.tasks.vision.FaceLandmarksConnections, name):
-            a, b = pair.start, pair.end
-            connections.add(tuple(sorted((a,b))))
-            draw.line([tuple(points[a,:2]), tuple(points[b,:2])], fill=weight, width=2)
-    # Actual detected nose landmarks, not hand-drawn facial proportions.
-    for chain in [[168,6,197,195,5,4,1,19,94,2], [98,97,2,326,327]]:
-        draw.line([tuple(points[i,:2]) for i in chain], fill=255, width=2)
-        connections.update(tuple(sorted(pair)) for pair in zip(chain, chain[1:]))
-    guided = np.clip(gaussian_filter(np.asarray(lines)/255., 2.2)*2.4, 0, 1)
-    lum = rgb @ np.array([.2126,.7152,.0722])
-    gy, gx = np.gradient(gaussian_filter(lum,.6))
-    edge = np.clip(np.hypot(gx,gy)*7, 0, 1)
-    # Preserve photographic facial-hair boundaries and actual hair strands.
-    features = np.clip(np.maximum(guided, edge*.72), 0, 1) * alpha
-    Image.fromarray(np.uint8(features*255)).save(PRIVATE / 'feature-density.png')
-    return features, sorted(connections)
+    yy, xx = np.mgrid[:400, :400]
+    regions = np.zeros_like(alpha)
+    groups = [
+        ('LEFT_EYE', 3.5), ('RIGHT_EYE', 3.5),
+        ('LEFT_EYEBROW', 3.4), ('RIGHT_EYEBROW', 3.4),
+        ('LEFT_IRIS', 2.6), ('RIGHT_IRIS', 2.6),
+        ('LIPS', 3.6), ('FACE_OVAL', 2.2),
+    ]
+    for name, radius in groups:
+        links = getattr(mp.tasks.vision.FaceLandmarksConnections, 'FACE_LANDMARKS_' + name)
+        for index in {i for pair in links for i in (pair.start, pair.end)}:
+            x, y = points[index, :2]
+            weight = .52 if name == 'FACE_OVAL' else .87
+            bump = weight * np.exp(-((xx - x)**2 + (yy - y)**2) / (2 * radius**2))
+            np.maximum(regions, bump, out=regions)
+    for index in [168, 195, 5, 4, 1, 98, 327]:
+        x, y = points[index, :2]
+        bump = .82 * np.exp(-((xx - x)**2 + (yy - y)**2) / (2 * 4.0**2))
+        np.maximum(regions, bump, out=regions)
+    # Source gradients guide density along the real hairstyle and facial hair.
+    luminance = rgb @ np.array([.2126, .7152, .0722])
+    gy, gx = np.gradient(gaussian_filter(luminance, .55))
+    texture = np.clip(gaussian_filter(np.hypot(gx, gy), .85) * 8, 0, 1)
+    features = np.maximum(regions, texture * .85) * alpha
+    Image.fromarray(np.uint8(features * 255)).save(PRIVATE / 'feature-density.png')
+    return features
 
 
 def reconstruct(points, alpha):
@@ -150,46 +194,65 @@ def reconstruct(points, alpha):
     return depth, center_z, {'landmarkDepthRmsePixels': float(np.sqrt(np.mean(error**2))), 'depthRangePixels': bounds}
 
 
-def particles(rgb, alpha, feature, depth, center_z):
+def particles(rgb, alpha, feature, depth, center_z, light=False):
     # Scrambled Halton candidates give progressive spatial coverage. Feature-aware
     # rejection and a spatial exclusion radius prevent V1's replacement clumps.
-    candidates = qmc.Halton(3,scramble=True,seed=1989).random(240000)
+    candidates = qmc.Halton(3,scramble=True,seed=4139 if light else 1989).random(240000)
     xs = CROP[0]+candidates[:,0]*(CROP[2]-CROP[0])
     ys = CROP[1]+candidates[:,1]*(CROP[3]-CROP[1])
     strength = sample(feature,xs,ys)
-    valid = (sample(alpha,xs,ys)>.25) & (candidates[:,2] < .38+.62*strength)
+    coverage = sample(alpha,xs,ys)
+    if light:
+        # On a pale stage, ink coverage carries the source's shadows. A local
+        # contrast pass resolves eyelids and lips without changing their positions.
+        gray = rgb @ np.array([.2126, .7152, .0722])
+        neighborhood = gaussian_filter(gray * alpha, 2.2) / np.maximum(gaussian_filter(alpha, 2.2), .01)
+        tone = np.clip(gray + .65 * (gray - neighborhood), 0, 1)
+        ink = 1 - smoothstep(.045, .91, sample(tone, xs, ys))
+        density = .44 + .46*ink + .10*strength
+        radii = .74 - .18*ink - .11*strength
+    else:
+        density = .65+.35*strength
+        radii = .55+.36*(1-strength)
+    valid = candidates[:,2] < density * smoothstep(.08, .66, coverage)
     bins, selected = {}, []
     cell = 1.
+    limit = 23500 if light else 21000
     for index in np.flatnonzero(valid):
-        x,y,f = xs[index],ys[index],strength[index]
-        radius = .5+.42*(1-f)
+        x,y = xs[index],ys[index]
+        radius = radii[index]
         bx,by = int(x/cell),int(y/cell)
         crowded = False
         for dx in [-1,0,1]:
             for dy in [-1,0,1]:
                 for px,py,pr in bins.get((bx+dx,by+dy),[]):
-                    if (x-px)**2+(y-py)**2 < min(radius,pr)**2:
+                    if (x-px)**2+(y-py)**2 < ((radius+pr)*.5)**2:
                         crowded=True;break
                 if crowded:break
             if crowded:break
         if crowded:continue
         bins.setdefault((bx,by),[]).append((x,y,radius))
         selected.append(index)
-        if len(selected)==18000:break
+        if len(selected)==limit:break
     assert len(selected)>=12000, 'Sampling failed to provide useful coverage.'
     chosen=np.array(selected)
     x,y=xs[chosen],ys[chosen]
     features=strength[chosen]
     positions=world(x,y,sample(depth,x,y),center_z)
     colors=np.column_stack([sample(rgb[:,:,i],x,y) for i in range(3)])
-    sizes=.84-.29*features
+    sizes=.88-.16*features
+    if light:
+        weights = ink[chosen]
+        colors = np.repeat(weights[:, None], 3, axis=1)
+        sizes = .76 + .14*weights - .11*features
     records=np.zeros(len(chosen),dtype=[('position','<f4',(3,)),('color','u1',(3,)),('size','u1'),('seed','<f4'),('feature','<f4')])
     records['position']=positions
     records['color']=np.rint(colors*255).astype('u1')
     records['size']=np.rint(sizes*150).astype('u1')
     records['seed']=np.mod(np.arange(len(chosen))*.61803398875,1)
     records['feature']=features
-    (OUTPUT/'facial-particles.bin').write_bytes(b'DBHP'+struct.pack('<III',2,len(chosen),24)+records.tobytes())
+    filename = 'facial-particles-light.bin' if light else 'facial-particles.bin'
+    (OUTPUT/filename).write_bytes(b'DBHP'+struct.pack('<III',2,len(chosen),24)+records.tobytes())
     return positions, colors, sizes, features
 
 
@@ -198,7 +261,8 @@ def surface(alpha,feature,depth,center_z):
     ys=np.arange(CROP[1],CROP[3]+1,2.)
     x,y=np.meshgrid(xs,ys)
     positions=world(x.ravel(),y.ravel(),sample(depth,x.ravel(),y.ravel()),center_z)
-    uv=np.column_stack(((x.ravel()-CROP[0])/(CROP[2]-CROP[0]),1-(y.ravel()-CROP[1])/(CROP[3]-CROP[1])))
+    width, height = CROP[2] - CROP[0] + 1, CROP[3] - CROP[1] + 1
+    uv=np.column_stack(((x.ravel()-CROP[0]+.5)/width,1-(y.ravel()-CROP[1]+.5)/height))
     attributes=np.column_stack((positions,uv,sample(feature,x.ravel(),y.ravel()))).astype('<f4')
     (OUTPUT/'facial-detail.bin').write_bytes(b'DBHS'+struct.pack('<III',1,len(xs),len(ys))+attributes.tobytes())
     indices=[]
@@ -276,43 +340,75 @@ def previews(image,rgb,alpha,feature,depth,center_z,positions,colors,sizes,featu
 
 
 
-def reveal_previews(image,rgb,alpha,feature,depth,center_z,positions,colors,sizes,features,contours):
-    """Exactly aligned digital/real static states for touch, reduced motion and failure."""
-    linear=srgb_to_linear(rgb)
-    lum=linear@np.array([.2126,.7152,.0722])
-    level=np.floor(np.clip(lum,0,.999)*6)/5
-    gy,gx=np.gradient(gaussian_filter(lum,.45))
-    edge=np.minimum(np.hypot(gx,gy)*4,.65)
-    digital=np.array([.008,.035,.065])+level[:,:,None]*np.array([.10,.31,.40])*.9
-    digital+=np.array([.10,.35,.43])*edge[:,:,None]*(.3+.7*feature[:,:,None])
-    rgba=np.dstack((np.uint8(np.clip(linear_to_srgb(digital),0,1)*255),np.uint8(alpha*(.32+.14*feature)*255)))
-    transform=(SCALE/192,0,CENTER[0]-384*SCALE/192,0,SCALE/192,CENTER[1]-384*SCALE/192)
-    def project(pixels):
-        return Image.fromarray(pixels).transform((768,768),Image.Transform.AFFINE,transform,resample=Image.Resampling.BICUBIC)
-    base=project(rgba)
-    layer=Image.new('RGBA',(768,768))
-    draw=ImageDraw.Draw(layer)
-    for p,c,size,f in zip(positions,colors,sizes,features):
-        value=float(srgb_to_linear(c)@np.array([.2126,.7152,.0722]))**.8
-        cyan=np.array([.12,.72,.93])*(.025+value*1.15)
-        color=cyan*(1-f*.36)+np.array([.78,.95,1.])*value*f*.36
-        fill=tuple(np.uint8(np.clip(linear_to_srgb(color),0,1)*255))+(185,)
-        x,y=384+p[0]*192,384-p[1]*192
-        radius=size*.62
-        draw.ellipse((x-radius,y-radius,x+radius,y+radius),fill=fill)
-    base=Image.alpha_composite(base,layer)
-    lines=Image.new('RGBA',base.size);draw=ImageDraw.Draw(lines)
-    for a,b in contours.reshape(-1,2,3):
-        draw.line([(384+a[0]*192,384-a[1]*192),(384+b[0]*192,384-b[1]*192)],fill=(139,232,255,48),width=1)
-    digital=Image.alpha_composite(base,lines)
-    original=np.dstack((np.asarray(image),np.uint8(alpha*255)))
-    real=project(original)
-    digital.save(OUTPUT/'portrait-digital-v3.webp',quality=94,method=6)
-    real.save(OUTPUT/'portrait-real-v3.webp',quality=97,method=6)
-    sheet=Image.new('RGB',(1536,820),'#05060b')
-    sheet.paste(digital,(0,45),digital);sheet.paste(real,(768,45),real)
-    draw=ImageDraw.Draw(sheet);draw.text((35,15),'DIGITAL IDENTITY / DEFAULT',fill='#b8dbea');draw.text((803,15),'REAL IDENTITY / WHILE HOLDING',fill='#b8dbea')
-    sheet.save(PRIVATE/'hold-reveal-states.jpg',quality=95)
+
+def smoothstep(lo, hi, value):
+    t = np.clip((value - lo) / (hi - lo), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def reveal_previews(rgb, alpha, particle_sets):
+    """Rasterize the assembled points for startup, reduced motion and WebGL failure."""
+    palettes = json.loads((ROOT / 'src/lib/hologram/palettes.json').read_text())
+    transform = (SCALE/192, 0, CENTER[0]-384*SCALE/192, 0, SCALE/192, CENTER[1]-384*SCALE/192)
+    supersample = 3
+
+    def linear_hex(value):
+        return srgb_to_linear(np.array([int(value[i:i+2], 16) for i in (1, 3, 5)]) / 255)
+
+    def save_asset(image, prefix):
+        encoded = io.BytesIO()
+        image.save(encoded, format='WEBP', lossless=True, method=6)
+        content = encoded.getvalue()
+        filename = prefix + '-' + hashlib.sha256(content).hexdigest()[:12] + '.webp'
+        (OUTPUT / filename).write_bytes(content)
+        for previous in OUTPUT.glob(prefix + '-*.webp'):
+            if previous.name != filename:
+                previous.unlink()
+        return '/hologram/' + filename
+
+    digital = {}
+    for theme, palette in palettes.items():
+        positions, colors, sizes, features = particle_sets[theme]
+        gray = colors @ np.array([.2126, .7152, .0722])
+        detail = smoothstep(.13, .36, gray) * (1 - smoothstep(.43, .68, gray))
+        tone = smoothstep(.025, .88, gray + .13 * features * detail)
+        x, y, z = positions.T
+        matte = smoothstep(.06, .74, sample(alpha, CENTER[0] + x*SCALE, CENTER[1] - y*SCALE))
+        depth = .80 + .20 * smoothstep(-.44, .20, z)
+        violet = (.22 * smoothstep(0, .83, x) * (1 - tone))[:, None]
+        shadow = linear_hex(palette['shadow'])
+        highlight = linear_hex(palette['highlight'])
+        if theme == 'light':
+            ink = colors[:, 0]
+            tint = highlight * (1 - ink[:, None]) + shadow * ink[:, None]
+            opacity = palette['highlightOpacity'] + (palette['shadowOpacity'] - palette['highlightOpacity']) * ink
+        else:
+            mid = linear_hex(palette['mid'])
+            accent = linear_hex(palette['violet'])
+            low = smoothstep(0, .56, tone)[:, None]
+            high = smoothstep(.44, 1, tone)[:, None]
+            tint = shadow * (1 - low) + mid * low
+            tint = tint * (1 - high) + highlight * high
+            tint = tint * (1 - violet) + accent * violet
+            opacity = palette['shadowOpacity'] + (palette['highlightOpacity'] - palette['shadowOpacity']) * tone
+        tint = linear_to_srgb(tint * depth[:, None])
+        opacity *= matte * (.92 + .08 * features)
+        points = Image.new('RGBA', (768 * supersample, 768 * supersample))
+        draw = ImageDraw.Draw(points)
+        for px, py, size, edge, rgb_point, a in zip(x, y, sizes, matte, tint, opacity):
+            if a < .004:
+                continue
+            cx, cy = (384 + px * 192) * supersample, (384 - py * 192) * supersample
+            radius = size * 1.26 * (.75 + .25 * edge) * supersample
+            fill = tuple(np.rint(rgb_point * 255).astype(int)) + (round(a * 255),)
+            draw.ellipse((cx-radius, cy-radius, cx+radius, cy+radius), fill=fill)
+        digital[theme] = save_asset(points.resize((768, 768), Image.Resampling.LANCZOS),
+                                    'portrait-particles-' + theme)
+
+    real = Image.fromarray(np.rint(np.dstack((rgb, alpha)) * 255).astype('u1')).transform(
+        (768, 768), Image.Transform.AFFINE, transform, resample=Image.Resampling.BICUBIC)
+    return digital, save_asset(real, 'portrait-real')
+
 
 def main():
     assert sha(SOURCE)==SOURCE_SHA,'Reinspect and retrace if the source changes.'
@@ -321,46 +417,33 @@ def main():
     image=Image.open(SOURCE).convert('RGB');assert image.size==(400,400)
     rgb=np.asarray(image)/255.
     points=detect(image)
-    alpha=segmentation(image)
-    feature,connections=feature_map(points,rgb,alpha)
+    alpha, clean=segmentation(rgb)
+    rgb=linear_to_srgb(clean)
+    feature=feature_map(points,rgb,alpha)
     depth,center_z,audit=reconstruct(points,alpha)
-    positions,colors,sizes,features=particles(rgb,alpha,feature,depth,center_z)
+    dark_particles=particles(rgb,alpha,feature,depth,center_z)
+    light_particles=particles(rgb,alpha,feature,depth,center_z,light=True)
+    positions,colors,sizes,features=dark_particles
     vertices,uv,indices,cols,rows=surface(alpha,feature,depth,center_z)
-    texture=np.dstack((np.asarray(image),np.uint8(alpha*255)))[CROP[1]:CROP[3]+1,CROP[0]:CROP[2]+1]
+    crop = np.s_[CROP[1]:CROP[3]+1, CROP[0]:CROP[2]+1]
+    # Store linear-premultiplied color encoded as sRGB. GPU filtering and mips
+    # operate on linear premultiplied values; the fragment shader recovers RGB.
+    premultiplied = np.dstack((linear_to_srgb(clean * alpha[:, :, None]), alpha))
+    texture = np.rint(premultiplied[crop] * 255).astype('u1')
     texture_image=Image.fromarray(texture)
     texture_image.save(OUTPUT/'portrait-detail.webp',lossless=True,method=6)
-    embedded=io.BytesIO();texture_image.save(embedded,format='PNG')
+    embedded=io.BytesIO();Image.fromarray(np.rint(np.dstack((rgb, alpha))[crop] * 255).astype('u1')).save(embedded,format='PNG')
     write_glb(vertices,uv,indices,embedded.getvalue())
-    # Contours now sample the exact same smoothed depth surface as the detail mesh.
-    xy=np.array([points[i,:2] for pair in connections for i in pair])
-    contours=world(xy[:,0],xy[:,1],sample(depth,xy[:,0],xy[:,1]),center_z).astype('<f4')
-    # Source-gradient strands keep hair and mustache detail specific to this photo.
-    edges=cv2.Canny(np.asarray(image),60,120)
-    yy,xx=np.mgrid[:400,:400]
-    region=(yy<103)|((yy>140)&(yy<179)&(xx>170)&(xx<244))
-    edges[(alpha<.8)|(~region)]=0
-    strokes,_=cv2.findContours(edges,cv2.RETR_LIST,cv2.CHAIN_APPROX_SIMPLE)
-    extras=[]
-    for stroke in strokes:
-        length=cv2.arcLength(stroke,False)
-        if length<6 or length>110:continue
-        points2=cv2.approxPolyDP(stroke,.5,False).reshape(-1,2)
-        for a,b in zip(points2,points2[1:]):
-            if np.linalg.norm(a-b)>7:continue
-            extras.extend([a,b])
-        if len(extras)>1400:break
-    if extras:
-        xy2=np.array(extras)
-        contours=np.concatenate((contours,world(xy2[:,0],xy2[:,1],sample(depth,xy2[:,0],xy2[:,1]),center_z).astype('<f4')))
-    (OUTPUT/'facial-contours.bin').write_bytes(contours.tobytes())
     previews(image,rgb,alpha,feature,depth,center_z,positions,colors,sizes,features)
-    reveal_previews(image,rgb,alpha,feature,depth,center_z,positions,colors,sizes,features,contours)
-    summary={'version':3,'source':'/images/dilshan-portrait.jpg','sourceSha256':SOURCE_SHA,'model':'MediaPipe Face Landmarker float16 v1','modelSha256':MODEL_SHA,
+    digital_fallback, real_fallback=reveal_previews(rgb,alpha,{'dark':dark_particles,'light':light_particles})
+    summary={'version':8,'digitalFallback':digital_fallback,'realFallback':real_fallback,'source':'/images/dilshan-portrait.jpg','sourceSha256':SOURCE_SHA,'model':'MediaPipe Face Landmarker float16 v1','modelSha256':MODEL_SHA,
         'landmarks':len(points),'surfaceVertices':len(vertices),'surfaceTriangles':len(indices)//3,'surfaceColumns':cols,'surfaceRows':rows,
-        'particles':len(positions),'particleStride':24,'contourVertices':len(contours),'audit':audit,
+        'particles':len(positions),'lightParticles':len(light_particles[0]),'particleStride':24,'audit':audit,
         'sampling':'Deterministic scrambled Halton candidates, feature-weighted rejection, local spacing exclusion; no replacement clumps.',
         'limitations':'Source-aligned approximate 2.5D; inferred depth compressed to preserve likeness. Hair/ear/neck depth is conservative. The photo remains 400x400; no hidden or enhanced facial details are generated.',
-        'assets':{p.name:{'bytes':p.stat().st_size,'sha256':sha(p)} for p in sorted(OUTPUT.iterdir()) if p.suffix in ['.bin','.glb','.webp']}}
+        'assets':{p.name:{'bytes':p.stat().st_size,'sha256':sha(p)} for p in sorted(OUTPUT.iterdir()) if p.name in {
+            'facial-particles.bin', 'facial-particles-light.bin', 'facial-detail.bin', 'facial-surface.glb',
+            'portrait-detail.webp', Path(real_fallback).name, *(Path(url).name for url in digital_fallback.values())}}}
     (OUTPUT/'manifest.json').write_text(json.dumps(summary,indent=2)+'\n')
     print(json.dumps(summary,indent=2))
 

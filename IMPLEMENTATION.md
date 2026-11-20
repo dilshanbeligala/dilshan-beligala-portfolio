@@ -36,3 +36,11 @@ V2 refinement details and comparison methodology: [tools/hologram/V2.md](tools/h
 ## Digital identity interaction
 
 The default is now a digital cyan/white particle sculpture with structural shading and precision contours. Holding reveals the original portrait on the same relief; release reconstructs the hologram. Static/mobile modes use aligned digital and real images with the same controller. Pointer, touch, keyboard, cancellation, focus/visibility reset, and a toggle alternative are documented in [tools/hologram/HOLD_REVEAL.md](tools/hologram/HOLD_REVEAL.md). V2 is checkpointed at `b64169f`.
+
+The current hologram uses portrait-sampled micro-particles and translucent depth shading. The digital and realistic states share a refined, color-decontaminated matte with a collar-level dissolve. The Neural Spatial Field adds parallax and slows during reveal. Generated portrait assets cover mobile, reduced motion, and unavailable WebGL. See [tools/hologram/README.md](tools/hologram/README.md) for asset reproduction.
+
+## Magnetic neural particle field
+
+The previous cursor drew connections only when the pointer targeted a supported section outside protected text and controls. Chrome confirmed the ring and connections in the hero and the absence of a particle canvas in Experience. An idle timeout also disconnected a stationary pointer. Each section created its own particle layout on resize or re-entry, so it could not carry anchors across sections.
+
+The root layout now mounts one decorative canvas and the original white cursor. Seeded document coordinates keep particles in place through scrolling and resizing. Section profiles adjust brightness while content masks protect text, cards, controls, and the portrait. Touch and reduced-motion users get a static field. The particle renderer stops requesting frames once the springs, lines, and signal settle.

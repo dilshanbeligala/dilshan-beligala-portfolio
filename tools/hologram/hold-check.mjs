@@ -1,9 +1,11 @@
 /** Native local Chrome input checks; no browser dependencies or production test hooks. */
 import { mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+const origin = process.env.PORTFOLIO_URL ?? 'http://localhost:3001';
+const debuggerUrl = process.env.PORTFOLIO_CHROME ?? 'http://127.0.0.1:9223';
 const output = new URL('./private/hold/', import.meta.url);
 await mkdir(output, { recursive: true });
-const page = await (await fetch('http://127.0.0.1:9223/json/new?about:blank', { method: 'PUT' })).json();
+const page = await (await fetch(`${debuggerUrl}/json/new?about:blank`, { method: 'PUT' })).json();
 const socket = new WebSocket(page.webSocketDebuggerUrl);
 await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
 const pending = new Map(), errors = [], requests = [];
@@ -34,10 +36,11 @@ const viewport = async (width, mobile = false) => {
   await call('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile });
   await call('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: 1 });
 };
-const revealState = () => evaluate(`({ requested: document.querySelector('.hologram-art').dataset.revealed === 'true', progress: document.querySelector('.hologram-ready') ? window.__portraitReveal : Number(document.querySelectorAll('.portrait-static-layer')[1].style.opacity), latched: document.querySelector('.portrait-toggle').getAttribute('aria-pressed') === 'true' })`);
+const revealProgress = "(document.querySelector('.hologram-ready') ? window.__portraitReveal : Number(document.querySelectorAll('.portrait-static-layer')[1].style.opacity))";
+const revealState = () => evaluate(`({ requested: document.querySelector('.hologram-art').dataset.revealed === 'true', progress: ${revealProgress}, latched: document.querySelector('.portrait-toggle').getAttribute('aria-pressed') === 'true' })`);
 const expected = async (requested, complete = true) => {
   await waitFor(`document.querySelector('.hologram-art').dataset.revealed === '${requested}'`);
-  if (complete) await pause(requested ? 500 : 650);
+  if (complete) await waitFor(`Math.abs(${revealProgress} - ${Number(requested)}) < .015`);
   const state = await revealState();
   assert.equal(state.requested, requested);
   if (complete) assert(Math.abs(state.progress - Number(requested)) < .015, JSON.stringify(state));
@@ -68,8 +71,8 @@ try {
   await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
   await viewport(1440);
   await mouse('mouseReleased', 0, 0);
-  await call('Page.navigate', { url: 'http://localhost:3001/?check=hold' });
-  await waitFor("document.querySelector('.hologram-ready canvas') && !document.querySelector('.portrait-hold').disabled");
+  await call('Page.navigate', { url: `${origin}/?check=hold` });
+  await waitFor("document.querySelector('.hologram-ready canvas') && document.querySelector('.portrait-hold')?.disabled === false");
   await pause(2300);
   const p = await center(); await mouse('mouseMoved', p.x, p.y); await pause(1100);
   report.initial = await expected(false);
@@ -81,10 +84,17 @@ try {
   report.matrixMaxDifference = Math.max(...before.map((value,index)=>Math.abs(value-after[index])));
   assert(report.matrixMaxDifference < .002, `Head transform changed: ${report.matrixMaxDifference}`);
   await release(); report.pointerRelease = await expected(false); await shot('desktop-reconstructed');
-  await press(); await pause(120); const first = await revealState();
-  await release(); await pause(90); const reversed = await revealState();
-  await press(); await pause(120); const second = await revealState();
-  assert(first.progress > 0 && first.progress < 1 && reversed.progress < first.progress && second.progress > reversed.progress);
+  const readProgress = "Number(document.querySelectorAll('.portrait-static-layer')[1].style.opacity)";
+  await press();
+  await waitFor(`${readProgress} > .05`);
+  const first = await evaluate(readProgress);
+  assert(first < 1, `Initial reversal sample had already completed: ${first}`);
+  await release();
+  await waitFor(`${readProgress} < ${first}`);
+  const reversed = await evaluate(readProgress);
+  await press();
+  await waitFor(`${readProgress} > ${reversed}`);
+  const second = await evaluate(readProgress);
   await release(); await expected(false); report.rapidReversal = { first, reversed, second };
   await press(); await expected(true);
   await evaluate("document.querySelector('.portrait-hold').dispatchEvent(new PointerEvent('pointercancel', {pointerId:window.__lastPointer,bubbles:true}))");
@@ -120,8 +130,8 @@ try {
   await release(); await pause(40); assert((await expected(false,false)).progress===0); report.reducedRelease = true;
   await call('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
   await viewport(390,true);
-  await call('Page.navigate', { url: 'http://localhost:3001/?check=touch' });
-  await waitFor("!document.querySelector('.portrait-hold').disabled && [...document.querySelectorAll('.hologram-fallback img')].every(i=>i.complete&&i.naturalWidth)");
+  await call('Page.navigate', { url: `${origin}/?check=touch` });
+  await waitFor("location.search === '?check=touch' && document.querySelector('.portrait-hold')?.disabled === false && [...document.querySelectorAll('.hologram-fallback img')].every(i=>i.complete&&i.naturalWidth)");
   await evaluate("document.querySelector('.portrait-hold').scrollIntoView({block:'center',behavior:'instant'})");
   await pause(500); await expected(false); await shot('mobile-digital');
   const touch = await center();
@@ -134,13 +144,13 @@ try {
   assert(!await evaluate('document.documentElement.scrollWidth>innerWidth'));
   await viewport(1440);
   const unsupported=await call('Page.addScriptToEvaluateOnNewDocument',{source:`(() => { const get=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(type,...args){return type==='webgl'||type==='webgl2'?null:get.call(this,type,...args);}; })();`});
-  await call('Page.navigate',{url:'http://localhost:3001/?check=no-webgl'});
-  await waitFor("!document.querySelector('.portrait-hold').disabled && [...document.querySelectorAll('.hologram-fallback img')].every(i=>i.complete&&i.naturalWidth)");
+  await call('Page.navigate',{url:`${origin}/?check=no-webgl`});
+  await waitFor("location.search === '?check=no-webgl' && document.querySelector('.portrait-hold')?.disabled === false && [...document.querySelectorAll('.hologram-fallback img')].every(i=>i.complete&&i.naturalWidth)");
   await pause(300); assert(!await evaluate("!!document.querySelector('.hologram-canvas canvas')"));
   await press(); report.noWebglHold=await expected(true); await release(); await expected(false);
   await call('Page.removeScriptToEvaluateOnNewDocument',{identifier:unsupported.identifier});
   assert.equal(errors.length,0,JSON.stringify(errors));
-  report.errors=errors;report.externalRequests=[...new Set(requests.filter(url=>/^https?:/.test(url)&&!url.startsWith('http://localhost:3001')))];
+  report.errors=errors;report.externalRequests=[...new Set(requests.filter(url=>/^https?:/.test(url)&&!url.startsWith(origin + '/')))];
   assert.equal(report.externalRequests.length,0);
   await writeFile(new URL('report.json',output),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 } finally { await call('Page.close').catch(() => {}); socket.close(); }

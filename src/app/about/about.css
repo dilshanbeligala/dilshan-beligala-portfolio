@@ -1,0 +1,382 @@
+.about-page {
+  --about-gutter: clamp(22px, 6.4vw, 104px);
+  --about-content: 1440px;
+  --about-reading: var(--text-support);
+  --about-rule: var(--border);
+  background:
+    radial-gradient(ellipse 75% 17% at 82% 5%, var(--ambient-blue), transparent),
+    radial-gradient(ellipse 48% 14% at 6% 75%, var(--ambient-violet), transparent),
+    var(--background);
+}
+
+.about-hero,
+.about-section,
+.about-closing {
+  max-width: var(--about-content);
+  margin-inline: auto;
+  padding-inline: var(--about-gutter);
+}
+.about-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.42fr) minmax(0, .86fr);
+  align-items: center;
+  gap: clamp(30px, 6vw, 95px);
+  padding-block: clamp(140px, 13vw, 194px) clamp(75px, 8vw, 122px);
+}
+.about-hero::before {
+  content: "";
+  position: absolute;
+  inset: 12% 0 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: linear-gradient(var(--grid-ink) 1px, transparent 1px), linear-gradient(90deg, var(--grid-ink) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse at 71% 35%, #000, transparent 71%);
+}
+.about-hero-content {
+  min-width: 0;
+}
+.about-eyebrow {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .17em;
+  text-transform: uppercase;
+  color: var(--text-support);
+}
+.about-hero-title {
+  margin: 20px 0 26px;
+  color: var(--foreground);
+  font-size: clamp(4.1rem, 7.75vw, 7.9rem);
+  font-weight: 640;
+  line-height: .91;
+  letter-spacing: -.076em;
+  white-space: nowrap;
+  animation-delay: .09s;
+}
+.about-hero-title em {
+  color: var(--cyan);
+  font-style: normal;
+}
+.about-lede {
+  max-width: 39ch;
+  color: var(--about-reading);
+  font-size: clamp(1rem, 1.65vw, 1.3rem);
+  line-height: 1.65;
+  animation-delay: .19s;
+}
+.about-page strong {
+  color: var(--foreground-accent);
+  font-weight: 580;
+}
+.about-role {
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+  gap: 6px;
+  border-left: 1px solid var(--border-accent);
+  padding-left: 14px;
+  margin-top: 31px;
+  color: var(--text-support);
+  font: 500 .69rem/1.4 var(--font-geist-mono), monospace;
+  text-transform: uppercase;
+  letter-spacing: .095em;
+  animation-delay: .29s;
+}
+.about-role span:first-child {
+  color: var(--foreground);
+}
+.about-hero-stats {
+  animation-delay: .16s;
+}
+.about-section {
+  display: grid;
+  grid-template-columns: minmax(0, .87fr) minmax(0, 1.13fr);
+  gap: clamp(30px, 6vw, 95px);
+  padding-block: clamp(59px, 7vw, 106px);
+  border-top: 1px solid var(--about-rule);
+}
+.about-section h2,
+.about-closing h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: clamp(1.9rem, 4.2vw, 4.15rem);
+  font-weight: 540;
+  line-height: 1.045;
+  letter-spacing: -.057em;
+  text-transform: uppercase;
+}
+.about-section-heading {
+  display: grid;
+  align-content: start;
+  gap: 13px;
+}
+.about-prose {
+  display: grid;
+  align-content: start;
+  gap: 17px;
+  color: var(--about-reading);
+  font-size: clamp(.98rem, 1.3vw, 1.12rem);
+  line-height: 1.77;
+}
+.about-prose p {
+  max-width: 60ch;
+}
+.about-efito {
+  align-items: center;
+  background: linear-gradient(112deg, var(--surface-soft), var(--surface-violet) 62%, transparent);
+}
+.about-company {
+  border-top: 1px solid var(--border-accent);
+  background: linear-gradient(135deg, var(--surface-panel), var(--surface-panel-end));
+  padding: clamp(20px, 3vw, 37px);
+}
+.about-company header {
+  margin-bottom: 23px;
+}
+.about-company h3 {
+  font-size: clamp(1.36rem, 2.55vw, 2.25rem);
+  font-weight: 570;
+  line-height: 1.12;
+  letter-spacing: -.04em;
+}
+.about-company h3 span {
+  color: var(--text-support);
+  font-size: .64em;
+  white-space: nowrap;
+}
+.about-company header > p,
+.about-project-category,
+.about-project-role,
+.about-journey-label,
+.about-timeline li > span {
+  color: var(--text-support);
+  font: 500 .69rem/1.55 var(--font-geist-mono), monospace;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+}
+.about-company header > p {
+  margin-top: 8px;
+}
+.about-leadership .about-prose {
+  border-left: 1px solid var(--border-accent);
+  padding-left: clamp(15px, 3vw, 34px);
+}
+.about-keywords {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 14px;
+  row-gap: 8px;
+  margin-top: 5px;
+  color: var(--text-support);
+  font-size: .81rem;
+}
+.about-keywords li::before {
+  content: "";
+  display: inline-block;
+  vertical-align: middle;
+  width: 4px;
+  height: 4px;
+  margin-right: 8px;
+  border: 1px solid var(--border-strong);
+  rotate: 45deg;
+}
+.about-stacked {
+  display: block;
+}
+.about-projects,
+.about-principles,
+.about-journey {
+  display: grid;
+  gap: clamp(13px, 2.5vw, 30px);
+  margin-top: clamp(26px, 4vw, 53px);
+}
+.about-projects,
+.about-journey {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.about-project {
+  min-width: 0;
+  border: 1px solid var(--about-rule);
+  border-top-color: var(--border-accent);
+  padding: clamp(20px, 3vw, 38px);
+  background: linear-gradient(155deg, var(--surface-panel), var(--surface-panel-end) 72%);
+  transition: border-color .24s ease, translate .24s ease;
+}
+.about-project:nth-child(2) {
+  border-top-color: var(--border-accent);
+  background: linear-gradient(155deg, var(--surface-violet), var(--surface-panel-end) 72%);
+}
+.about-project h3 {
+  margin: 13px 0 15px;
+  color: var(--foreground);
+  font-size: clamp(1.8rem, 3.4vw, 3.3rem);
+  font-weight: 570;
+  line-height: 1.05;
+  letter-spacing: -.055em;
+}
+.about-project-role {
+  margin-bottom: 12px;
+  color: var(--foreground-accent);
+}
+.about-project > p:last-child,
+.about-principles p {
+  max-width: 47ch;
+  color: var(--about-reading);
+  font-size: .95rem;
+  line-height: 1.7;
+}
+.about-principles {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.about-principles article {
+  border-top: 1px solid var(--about-rule);
+  padding: 19px 8px 0 0;
+}
+.about-principles h3 {
+  margin: 0 0 9px;
+  font-size: 1.18rem;
+  font-weight: 560;
+  letter-spacing: -.025em;
+}
+.about-journey {
+  gap: clamp(27px, 6vw, 95px);
+}
+.about-journey-label {
+  margin-bottom: 22px;
+}
+.about-timeline {
+  position: relative;
+  padding-left: 20px;
+}
+.about-timeline::before,
+.about-timeline::after {
+  content: "";
+  position: absolute;
+  inset: 6px auto 15px 2px;
+  width: 1px;
+  background: linear-gradient(var(--border-accent), var(--ambient-violet));
+}
+.about-timeline::after {
+  background: linear-gradient(var(--border-accent), var(--ambient-violet));
+  transform-origin: top;
+}
+.about-timeline li {
+  position: relative;
+  padding-bottom: 26px;
+}
+.about-timeline li:last-child {
+  padding-bottom: 0;
+}
+.about-timeline li::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: -21px;
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface-dialog);
+}
+.about-timeline li:first-child::before {
+  border-color: var(--cyan);
+  box-shadow: 0 0 8px var(--glow-accent);
+}
+.about-timeline h4 {
+  margin-top: 4px;
+  font-size: 1rem;
+  font-weight: 560;
+  line-height: 1.4;
+}
+.about-timeline p {
+  color: var(--about-reading);
+  font-size: .89rem;
+  line-height: 1.5;
+  margin-top: 5px;
+}
+.about-ai {
+  background: radial-gradient(ellipse at 16% 52%, var(--ambient-violet), transparent 62%);
+}
+.about-closing {
+  padding-block: clamp(70px, 9vw, 126px);
+  border-top: 1px solid var(--about-rule);
+  background: radial-gradient(ellipse 56% 82% at 65% 87%, var(--ambient-blue), transparent);
+}
+.about-closing h2 {
+  font-size: clamp(2.1rem, 5.3vw, 5.7rem);
+}
+.about-closing p {
+  max-width: 51ch;
+  margin-top: 19px;
+  color: var(--about-reading);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.about-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 11px;
+  margin-top: 25px;
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .about-project:hover {
+    border-color: var(--border-accent);
+    translate: 0 -3px;
+  }
+}
+@media (max-width: 900px) {
+  .about-hero {
+    gap: 30px;
+  }
+  .about-hero-title {
+    font-size: clamp(3.25rem, 8.1vw, 5.5rem);
+  }
+  .about-section {
+    gap: 30px;
+  }
+}
+@media (max-width: 650px) {
+  .about-hero {
+    grid-template-columns: 1fr;
+    padding-top: 120px;
+    padding-bottom: 64px;
+    row-gap: 36px;
+  }
+  .about-hero-title {
+    font-size: clamp(3rem, 11vw, 5.1rem);
+    margin-block: 16px 21px;
+  }
+  .about-role {
+    margin-top: 22px;
+  }
+  .about-section,
+  .about-projects,
+  .about-principles,
+  .about-journey {
+    grid-template-columns: 1fr;
+  }
+  .about-section {
+    gap: 23px;
+  }
+  .about-principles article {
+    padding-top: 13px;
+  }
+  .about-journey {
+    gap: 29px;
+  }
+  .about-timeline li {
+    padding-bottom: 20px;
+  }
+  .about-timeline li:last-child {
+    padding-bottom: 0;
+  }
+  .about-leadership .about-prose {
+    padding-left: 13px;
+  }
+  .about-keywords {
+    font-size: .75rem;
+  }
+  .about-closing h2 br {
+    display: none;
+  }
+}

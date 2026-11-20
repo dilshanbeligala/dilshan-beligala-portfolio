@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import "./theme.css";
+import { ThemeProvider } from "@/components/theme-provider";
+import { initializeTheme } from "@/lib/theme";
+import { NeuralConstellation } from "@/components/neural-constellation";
+import "./professional.css";
+import { professionalDescription } from "@/lib/professional-history";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,16 +20,22 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Dilshan Beligala | Software Engineer",
-  description: "Portfolio of Dilshan Beligala, a Software Engineer focused on mobile, web, and AI-assisted software development.",
+  description: professionalDescription,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <head>
+        {/* The inline bootstrap must run before the browser paints the body. */}
+        <script dangerouslySetInnerHTML={{ __html: initializeTheme }} />
+      </head>
+      <body className="min-h-full flex flex-col"><ThemeProvider />{children}<NeuralConstellation /></body>
     </html>
   );
 }

@@ -32,9 +32,13 @@ export function usePortraitReveal() {
 
   useEffect(() => {
     const target = requested ? 1 : 0;
+    if (reduced) {
+      progress.set(target);
+      return;
+    }
     const distance = Math.abs(target - progress.get());
     const animation = animate(progress, target, {
-      duration: reduced ? 0 : distance * (requested ? .4 : .55),
+      duration: distance * (requested ? .4 : .55),
       ease: [0.22, 0.61, 0.36, 1],
     });
     return () => animation.stop();

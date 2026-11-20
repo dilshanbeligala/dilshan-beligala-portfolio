@@ -1,0 +1,16 @@
+{
+  "dark": {
+    "shadow": "#285e85",
+    "mid": "#42b6e1",
+    "highlight": "#d2f5ff",
+    "violet": "#806cca",
+    "shadowOpacity": 0.58,
+    "highlightOpacity": 0.98
+  },
+  "light": {
+    "shadow": "#10243b",
+    "highlight": "#3c617b",
+    "shadowOpacity": 0.99,
+    "highlightOpacity": 0.31
+  }
+}

@@ -49,9 +49,13 @@ MPLCONFIGDIR="$PWD/.cache/matplotlib" XDG_CACHE_HOME="$PWD/.cache" .venv-hologra
 
 MediaPipe on macOS needs a graphics context for image preprocessing even with CPU inference selected. A restrictive process sandbox may prevent initialization. Processing remains entirely local when run with that permission.
 
-## V2 reconstruction, formats, and renderer
+## Particle renderer
 
-The current implementation is Digital Identity / Hold to Reveal. Read [HOLD_REVEAL.md](HOLD_REVEAL.md) for its state materials, controller, input behavior, alignment, assets, and validation. Read [V2.md](V2.md) for the audit, interpolation and sampling methods, depth-aligned photographic layer, binary formats, quality policy, diagnostics, measurements, checkpoint, and limitations. The original V1 implementation is recoverable at Git commit `e3c0102`.
+The generator uses the source-specific trimap and foreground/background color estimates to recover the subject matte. Progressive, feature-weighted sampling keeps spatial coverage as the point count changes with viewport size. Matte coverage tapers the density, size, and opacity near the silhouette. The jacket dissolves below the neck.
+
+The GPU assembles the portrait from scattered dots on startup. After a five-second portrait hold, the points travel directly into one of 20 profile words, hold for two seconds, and travel directly back into the portrait. Word shapes are sampled into a reusable point target. The timer pauses during intentional photo reveal. Reduced motion and unavailable WebGL use the assembled preview. Dark mode uses the original point cloud. Light mode uses a separate source-derived stipple with locally enhanced tonal contrast and denser shadow sampling. A theme change selects the corresponding geometry and shader in the same draw. The textured relief is drawn during the explicit hold or toggle interaction. The two particle previews share the point data, framing, and palettes with WebGL and cover startup, reduced motion, and renderer failure.
+
+[WIREFRAME.md](WIREFRAME.md) documents the earlier renderer. [HOLD_REVEAL.md](HOLD_REVEAL.md) covers the interaction controller. [V2.md](V2.md) records the reconstruction, data formats, and limitations. The original V1 implementation is recoverable at Git commit `e3c0102`.
 
 The generator verifies both the original portrait and model hashes, runs locally, and writes optimized assets to `public/hologram/`. Source-derived diagnostics and intermediate landmarks remain in ignored `tools/hologram/private/`, outside the served assets. No recognition embeddings or facial classifiers are produced.
 
@@ -63,8 +67,8 @@ The generator verifies both the original portrait and model hashes, runs locally
 node tools/hologram/browser-check.mjs
 ```
 
-Screenshots and JSON results are written to ignored `private/browser/`. The script simulates reduced motion, context loss, unavailable WebGL, pointer positions, viewport changes, and mobile navigation. It checks that the page makes no external HTTP requests.
+Screenshots and JSON results are written to ignored `private/direct-morph/`. The script tests delayed assets, first-frame uniforms, a hard reload, startup assembly and the portrait-to-word cycle in both themes, theme switching, About Me scroll navigation, pointer response, offscreen rendering, reduced motion, context loss, unavailable WebGL, and mobile navigation. It checks that the page makes no external HTTP requests.
 
 ## Validation results
 
-See [HOLD_REVEAL.md](HOLD_REVEAL.md), `private/hold/report.json`, and the general regression report at `private/browser/report.json`. Browser screenshots are inspected at identical viewport sizes before claiming a visual improvement. The previously documented MediaPipe wheel metadata warning remains confined to offline tooling; the verified ARM64 binary successfully generates the assets.
+See [HOLD_REVEAL.md](HOLD_REVEAL.md), `private/hold/report.json`, and the word cycle report at `private/direct-morph/report.json`. Browser screenshots are inspected at identical viewport sizes before claiming a visual improvement. The previously documented MediaPipe wheel metadata warning remains confined to offline tooling; the verified ARM64 binary successfully generates the assets.

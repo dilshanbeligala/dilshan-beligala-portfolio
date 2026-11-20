@@ -1,5 +1,7 @@
 # Digital identity — hold to reveal
 
+The rendering notes below describe the original hold-to-reveal version. See [README.md](README.md) for the current particle renderer. The interaction controller and behavior described here still apply.
+
 ## Checkpoint and scope
 
 Git commit `b64169f` preserves the complete working V2 implementation before this refinement. V3 changes remain uncommitted for review. Navigation, identity text, CTAs, metadata, and other portfolio sections are unchanged. Portrait-local annotations and sizing were adjusted to keep the interaction instructions visible inside the hero.

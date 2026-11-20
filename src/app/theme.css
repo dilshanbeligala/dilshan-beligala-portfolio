@@ -1,0 +1,140 @@
+/* Both palettes resolve from the root color scheme, including before JavaScript loads. */
+:root {
+  color-scheme: light dark;
+  --background: light-dark(#f6f8fc, #05060b);
+  --surface: light-dark(#fff, #0b1020);
+  --foreground: light-dark(#142235, #f4f7ff);
+  --muted: light-dark(#506179, #999eaf);
+  --text-support: light-dark(#43566d, #bdc8da);
+  --accent: light-dark(#086788, #49e5ff);
+  --accent-secondary: light-dark(#6243a9, #8b5cf6);
+  --border: light-dark(#c1cedf, #a2b3d721);
+  --foreground-subtle: light-dark(#53657b, #8490a7);
+  --foreground-accent: light-dark(#075979, #b2edf6);
+  --heading-secondary: light-dark(#354a65, #c5cbdc);
+  --accent-highlight: light-dark(#164d78, #d9f7ff);
+  --surface-glass: light-dark(#fbfdfff0, #0b101bc4);
+  --surface-overlay: light-dark(#273c5675, #05060bed);
+  --surface-dialog: light-dark(#fdfefe, #080c15);
+  --surface-soft: light-dark(#e7eef7c9, #10141f65);
+  --surface-hover: light-dark(#dae8f2, #142733);
+  --surface-subtle: light-dark(#ecf2f8, #0b0e1666);
+  --surface-elevated: light-dark(#fff, #14171b);
+  --surface-panel: light-dark(#fefeff, #121f32a8);
+  --surface-panel-end: light-dark(#e8f0f8, #0e1422b0);
+  --surface-violet: light-dark(#f2edf9, #1d1c3699);
+  --surface-accent: light-dark(#deedf5, #132638a3);
+  --ambient-hero: light-dark(#dceaf7, #0d1427);
+  --ambient-blue: light-dark(#b4d6ed65, #14304740);
+  --ambient-violet: light-dark(#d6c8ee66, #26203b7d);
+  --ambient-faint: light-dark(#7ac2e126, #49e5ff07);
+  --ambient-stage: light-dark(#bed9ef5e, #151d3826);
+  --primary: light-dark(#086788, #b7f4fc);
+  --primary-hover: light-dark(#075371, #d8fbff);
+  --primary-ink: light-dark(#fff, #07161d);
+  --primary-shine: light-dark(#ffffff30, #fff9);
+  --border-control: light-dark(#688299, #698b9c66);
+  --border-strong: light-dark(#7791ac, #60778d);
+  --border-accent: light-dark(#267d9c89, #49e5ff77);
+  --grid-ink: light-dark(#54799914, #a7c7ff09);
+  --glow-accent: light-dark(#12759b26, #49e5ff65);
+  --glow-soft: light-dark(#3888ab19, #49e5ff1f);
+  --shadow: light-dark(#233e6122, #0003);
+  --shadow-dialog: light-dark(#142b4260, #0009);
+  --stat-accent: light-dark(#486800, #b5f000);
+  --stat-border: light-dark(#b4c3d3, #c6d1de44);
+  --stat-label: light-dark(#344860, #d2dbe5);
+  --glitch-violet: light-dark(#6545ad, #a788ff);
+  --cursor-stroke: light-dark(#132c46, #fff);
+  --cursor-halo: light-dark(#102f4b20, #ffffff23);
+  --code-teal: light-dark(#285b78, #8bd9ec);
+  --code-violet: light-dark(#654991, #baa4ff);
+  --code-muted: light-dark(#546b89, #829cb6);
+  --code-light-teal: light-dark(#9bcde949, #114a663f);
+  --code-light-violet: light-dark(#b9a3e650, #412a764d);
+  --focus-ring: var(--accent);
+  --selection-background: var(--primary);
+  --selection-foreground: var(--primary-ink);
+}
+:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: clamp(7px, 1vw, 14px);
+}
+.theme-switcher {
+  display: flex;
+  gap: 3px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--border-control);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+.theme-switcher label { display: flex; flex: 1; cursor: pointer; }
+.theme-switcher label > span {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 31px;
+  min-block-size: 35px;
+  padding-inline: 5px;
+  border-radius: 4px;
+  color: var(--text-support);
+  font-size: var(--type-label);
+}
+.theme-switcher label:hover > span { background: var(--surface-hover); color: var(--foreground); }
+.theme-switcher input:checked + span {
+  background: var(--primary);
+  color: var(--primary-ink);
+  font-weight: 600;
+}
+.theme-switcher input:focus-visible + span {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+.theme-switcher-mobile label > span { min-block-size: 44px; }
+@media (max-width: 1099px) {
+  .theme-switcher-desktop { display: none; }
+  .header-actions { margin-left: auto; }
+}
+@media (min-width: 1100px) and (max-width: 1200px) {
+  .desktop-nav { gap: 13px; }
+  .site-header { gap: 12px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-theme-transition] :is(body, .site-header, .mobile-menu, .button, .theme-switcher, .engineering-stat, .home-project-card, .about-project, footer) {
+    transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease, box-shadow 200ms ease;
+  }
+}
+@media (forced-colors: active) {
+  .theme-switcher input:checked + span { border: 1px solid SelectedItem; color: SelectedItemText; background: SelectedItem; forced-color-adjust: none; }
+}
+
+.portrait-preview-dark { opacity: 1; }
+.portrait-preview-light { opacity: 0; }
+:root[data-theme="light"] .portrait-preview-dark { opacity: 0; }
+:root[data-theme="light"] .portrait-preview-light { opacity: 1; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .portrait-preview-dark { opacity: 0; }
+  :root:not([data-theme]) .portrait-preview-light { opacity: 1; }
+}
+:root[data-theme-transition] :is(.portrait-preview-dark, .portrait-preview-light) {
+  transition: opacity 200ms ease;
+}
+.mobile-menu-caption { margin-top: 14px; }
+.theme-switcher-desktop label > span { position: relative; }
+.theme-switcher-desktop input:checked + span::after {
+  content: "";
+  position: absolute;
+  inset-block-end: 4px;
+  inline-size: 8px;
+  block-size: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}

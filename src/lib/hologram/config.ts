@@ -1,20 +1,24 @@
+import portraitManifest from "../../../public/hologram/manifest.json";
+
 export type Quality = "high" | "medium" | "low";
 export type PointerTarget = { x: number; y: number };
 
-// Conservative starting budgets; the renderer may step down after slow frames.
 export const qualityPresets = {
-  high: { particles: 15641, ambient: 80, dpr: 1.5, pointSize: 2.0 },
-  medium: { particles: 11000, ambient: 45, dpr: 1.25, pointSize: 2.2 },
-  low: { particles: 4500, ambient: 20, dpr: 1, pointSize: 2.6 },
+  high: { particles: portraitManifest.particles, lightParticles: portraitManifest.lightParticles, dpr: 1.5, pointSize: 3.6 },
+  medium: { particles: 16000, lightParticles: 20400, dpr: 1.5, pointSize: 3.9 },
+  low: { particles: 11000, lightParticles: 14900, dpr: 1.5, pointSize: 4.55 },
 } as const;
+
 export const hologram = {
+  framing: 4,
   horizontalRotation: 5 * Math.PI / 180,
   verticalRotation: 3 * Math.PI / 180,
-  assemblySeconds: 2.1,
-  surfaceUrl: "/hologram/facial-particles.bin",
+  cursorRadius: .32,
+  cursorStrength: .026,
+  particlesUrl: "/hologram/facial-particles.bin",
+  lightParticlesUrl: "/hologram/facial-particles-light.bin",
   detailUrl: "/hologram/facial-detail.bin",
   textureUrl: "/hologram/portrait-detail.webp",
-  contourUrl: "/hologram/facial-contours.bin",
-  fallbackUrl: "/hologram/portrait-digital-v3.webp",
-  realFallbackUrl: "/hologram/portrait-real-v3.webp",
+  fallbackUrl: portraitManifest.digitalFallback,
+  realFallbackUrl: portraitManifest.realFallback,
 };

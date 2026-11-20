@@ -1,27 +1,32 @@
 "use client";
 
+import { watchResolvedTheme } from "../theme-provider";
+
 import type { MotionValue } from "motion/react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { AdditiveBlending, BufferAttribute, BufferGeometry, Group, MathUtils, ShaderMaterial, LineBasicMaterial, SRGBColorSpace, Texture } from "three";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { BufferAttribute, Color, DynamicDrawUsage, Group, MathUtils, Mesh, Points, ShaderMaterial, SRGBColorSpace, Texture, Vector2, Vector3 } from "three";
 import { hologram, qualityPresets, type PointerTarget, type Quality } from "@/lib/hologram/config";
-import { createAmbientGeometry, createDetailGeometry, createFaceGeometry, decodePortrait, type PortraitData } from "@/lib/hologram/geometry";
+import { createDetailGeometry, createFaceGeometry, decodePoints, decodePortrait, type PortraitData } from "@/lib/hologram/geometry";
+import { createWordSampler, hologramFrame, hologramWords } from "@/lib/hologram/word-cycle";
+import palettes from "@/lib/hologram/palettes.json";
 import { detailFragmentShader, detailVertexShader, faceFragmentShader, faceVertexShader } from "@/lib/hologram/shaders";
+
 
 type SceneProps = {
   pointer: RefObject<PointerTarget>;
+  cursor: RefObject<PointerTarget & { active: boolean }>;
   reveal: MotionValue<number>;
+  wordMix: MotionValue<number>;
   quality: Quality;
   active: boolean;
   onReady: () => void;
   onFailure: () => void;
-  onDegrade: () => void;
-  onPromote: () => void;
 };
 
 function RendererLifecycle({ onFailure }: Pick<SceneProps, "onFailure">) {
   const { gl } = useThree();
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = gl.domElement;
     const lost = (event: Event) => { event.preventDefault(); onFailure(); };
     const oldHandler = gl.debug.onShaderError;
@@ -37,100 +42,138 @@ function RendererLifecycle({ onFailure }: Pick<SceneProps, "onFailure">) {
   return null;
 }
 
-function Sculpture({ data, texture, pointer, reveal, quality, onReady, onDegrade, onPromote }: Omit<SceneProps, "active" | "onFailure"> & { data: PortraitData; texture: Texture }) {
+type Assets = { data: PortraitData; lightPoints: ReturnType<typeof decodePoints>; texture: Texture };
+
+function Sculpture({ data, lightPoints, texture, pointer, cursor, reveal, wordMix, quality, active, onReady }: Omit<SceneProps, "onFailure"> & Assets) {
   const group = useRef<Group>(null);
-  const ambient = useRef<Group>(null);
-  const material = useRef<ShaderMaterial>(null);
-  const contourMaterial = useRef<LineBasicMaterial>(null);
-  const detailMaterial = useRef<ShaderMaterial>(null);
+  const photo = useRef<Mesh>(null);
+  const portrait = useRef<Points>(null);
+  const pointsMaterial = useRef<ShaderMaterial>(null);
+  const photoMaterial = useRef<ShaderMaterial>(null);
   const elapsed = useRef(0);
-  const announced = useRef(false);
-  const performance = useRef({ seconds: 0, frames: 0, cooldown: 0, promoted: false });
+  const cycleTime = useRef(0);
+  const wordIndex = useRef(-1);
+  const wordSampler = useRef<ReturnType<typeof createWordSampler>>(null);
+  const hasRendered = useRef(false);
+  const themeTarget = useRef(0);
+  const skipDelta = useRef(true);
   const { size, gl } = useThree();
   const preset = qualityPresets[quality];
   const detail = useMemo(() => createDetailGeometry(data), [data]);
-  const face = useMemo(() => createFaceGeometry(data), [data]);
-  const contours = useMemo(() => {
-    const geometry = new BufferGeometry();
-    geometry.setAttribute("position", new BufferAttribute(data.contours, 3));
-    return geometry;
-  }, [data]);
-  const atmosphere = useMemo(() => createAmbientGeometry(80), []);
-  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uAssembly: { value: 0 }, uPointSize: { value: 1.7 }, uDpr: { value: 1 }, uReveal: { value: 0 } }), []);
-
-  const detailUniforms = useMemo(() => ({ uPortrait: { value: texture }, uTime: { value: 0 }, uAssembly: { value: 0 }, uReveal: { value: 0 } }), [texture]);
-
-  useEffect(() => {
-    face.setDrawRange(0, Math.min(preset.particles, data.seeds.length));
-    atmosphere.setDrawRange(0, preset.ambient);
-  }, [face, atmosphere, preset, data]);
-  useEffect(() => () => { face.dispose(); detail.dispose(); contours.dispose(); atmosphere.dispose(); }, [face, detail, contours, atmosphere]);
-
-  useFrame((_, delta) => {
-    // Clamp resume delta so tab/visibility changes never advance the intro abruptly.
-    elapsed.current += Math.min(delta, .05);
-    const time = elapsed.current;
-    if (material.current) {
-      const uniforms = material.current.uniforms;
-      uniforms.uTime.value = time;
-      uniforms.uReveal.value = reveal.get();
-      uniforms.uAssembly.value = MathUtils.smoothstep(time / hologram.assemblySeconds, 0, 1);
-      uniforms.uPointSize.value = preset.pointSize * Math.min(size.height / 600, 1.3);
-      uniforms.uDpr.value = gl.getPixelRatio();
+  const dark = useMemo(() => createFaceGeometry(data, data.surface), [data]);
+  const light = useMemo(() => createFaceGeometry(lightPoints, data.surface), [lightPoints, data.surface]);
+  useLayoutEffect(() => {
+    wordSampler.current = createWordSampler();
+    for (const geometry of [dark, light]) {
+      const positions = geometry.getAttribute("position");
+      const target = new BufferAttribute(new Float32Array(positions.count * 3), 3).setUsage(DynamicDrawUsage);
+      geometry.setAttribute("aWordTarget", target);
     }
-    if (detailMaterial.current) {
-      detailMaterial.current.uniforms.uTime.value = time;
-      detailMaterial.current.uniforms.uReveal.value = reveal.get();
-      detailMaterial.current.uniforms.uAssembly.value = MathUtils.smoothstep(time / hologram.assemblySeconds, 0, 1);
+  }, [dark, light]);
+
+  const uniforms = useMemo(() => {
+    const colors = ({ shadow, mid, highlight, violet }: typeof palettes.dark) =>
+      [shadow, mid, highlight, violet].map(color => new Color(color));
+    return {
+      uPortrait: { value: texture },
+      uTime: { value: 0 },
+      uScatter: { value: 1 },
+      uWord: { value: 0 },
+      uPointSize: { value: 1 },
+      uDpr: { value: 1 },
+      uReveal: { value: 0 },
+      uLightTheme: { value: 0 },
+      uCursor: { value: new Vector3() },
+      uCursorRadius: { value: hologram.cursorRadius },
+      uCursorStrength: { value: hologram.cursorStrength },
+      uDarkColors: { value: colors(palettes.dark) },
+      uLightColors: { value: [new Color(palettes.light.highlight), new Color(palettes.light.shadow)] },
+      uDarkOpacity: { value: new Vector2(palettes.dark.shadowOpacity, palettes.dark.highlightOpacity) },
+      uLightOpacity: { value: new Vector2(palettes.light.shadowOpacity, palettes.light.highlightOpacity) },
+    };
+  }, [texture]);
+  const detailUniforms = useMemo(() => ({ uPortrait: { value: texture }, uTime: { value: 0 }, uReveal: { value: 0 } }), [texture]);
+
+  useLayoutEffect(() => {
+    dark.setDrawRange(0, Math.min(preset.particles, data.seeds.length));
+    light.setDrawRange(0, Math.min(preset.lightParticles, lightPoints.seeds.length));
+  }, [dark, light, preset, data.seeds.length, lightPoints.seeds.length]);
+  useEffect(() => () => { dark.dispose(); light.dispose(); detail.dispose(); }, [dark, light, detail]);
+  useLayoutEffect(() => watchResolvedTheme(theme => {
+    themeTarget.current = theme === "light" ? 1 : 0;
+  }), []);
+  useLayoutEffect(() => { skipDelta.current = true; }, [active]);
+
+  useFrame((_, frameDelta) => {
+    if (!portrait.current || !pointsMaterial.current || !photoMaterial.current) return;
+    // Fiber copies the uniform entries into the material when it applies props.
+    const points = pointsMaterial.current.uniforms as typeof uniforms;
+    const detail = photoMaterial.current.uniforms as typeof detailUniforms;
+    // Ignore time spent paused and bound advances after a stalled frame.
+    const delta = skipDelta.current ? 0 : Math.min(frameDelta, .1);
+    skipDelta.current = false;
+    const initializing = !hasRendered.current;
+    const progress = reveal.get();
+    elapsed.current += delta;
+    if (progress <= .004) cycleTime.current += delta;
+    const frame = hologramFrame(cycleTime.current);
+    if (wordIndex.current !== frame.index && wordSampler.current) {
+      for (const geometry of [dark, light]) {
+        const target = geometry.getAttribute("aWordTarget");
+        const positions = geometry.getAttribute("position");
+        wordSampler.current(hologramWords[frame.index], target.array as Float32Array, positions.array as Float32Array);
+        target.needsUpdate = true;
+      }
+      wordIndex.current = frame.index;
     }
-    if (contourMaterial.current) contourMaterial.current.opacity = .20 * (1 - reveal.get());
+    const visibility = 1 - MathUtils.smoothstep(progress, 0, .55);
+    points.uScatter.value = frame.scatter * visibility;
+    points.uWord.value = wordIndex.current === frame.index ? frame.word * visibility : 0;
+    if (wordMix.get() !== points.uWord.value) wordMix.set(points.uWord.value);
+
+    points.uTime.value = elapsed.current;
+    points.uReveal.value = initializing ? 0 : progress;
+    points.uPointSize.value = preset.pointSize * size.height / 768;
+    points.uDpr.value = gl.getPixelRatio();
+    // The selected geometry and its tone interpretation change in the same draw.
+    portrait.current.geometry = themeTarget.current === 1 ? light : dark;
+    points.uLightTheme.value = themeTarget.current;
+
+    detail.uTime.value = elapsed.current;
+    detail.uReveal.value = points.uReveal.value;
+    if (photo.current) photo.current.visible = detail.uReveal.value > .004;
+
+    const local = points.uCursor.value;
+    if (cursor.current.active) {
+      local.x = MathUtils.damp(local.x, cursor.current.x, 15, delta);
+      local.y = MathUtils.damp(local.y, cursor.current.y, 15, delta);
+    }
+    local.z = MathUtils.damp(local.z, Number(cursor.current.active), 12, delta);
+
     if (group.current) {
       group.current.rotation.y = MathUtils.damp(group.current.rotation.y, pointer.current.x * hologram.horizontalRotation, 5, delta);
       group.current.rotation.x = MathUtils.damp(group.current.rotation.x, -pointer.current.y * hologram.verticalRotation, 5, delta);
       group.current.position.x = MathUtils.damp(group.current.position.x, pointer.current.x * .025, 4, delta);
       group.current.position.y = MathUtils.damp(group.current.position.y, pointer.current.y * .018, 4, delta);
     }
-    if (ambient.current) {
-      ambient.current.rotation.z = Math.sin(time * .08) * .025;
-      ambient.current.position.x = -pointer.current.x * .035;
-      ambient.current.position.y = -pointer.current.y * .025;
-    }
-    if (!announced.current && time > .08) { announced.current = true; onReady(); }
-    // One measured promotion at most; sustained slow frames step down with a cooldown.
-    const sample = performance.current;
-    if (time > 3 && delta < .2 && time > sample.cooldown) {
-      sample.seconds += delta; sample.frames++;
-      if (sample.seconds > 2) {
-        const average = sample.seconds / sample.frames;
-        if (average > .034) { sample.promoted = true; onDegrade(); }
-        else if (average < .019 && !sample.promoted && quality === "medium") { sample.promoted = true; onPromote(); }
-        sample.seconds = 0; sample.frames = 0; sample.cooldown = time + 5;
-      }
-    }
   });
 
-  return <>
-    <group ref={group}>
-      <mesh geometry={detail} renderOrder={0}>
-        <shaderMaterial ref={detailMaterial} uniforms={detailUniforms} vertexShader={detailVertexShader} fragmentShader={detailFragmentShader} transparent depthWrite depthTest toneMapped={false} />
-      </mesh>
-      <points geometry={face} frustumCulled={false} renderOrder={1}>
-        <shaderMaterial ref={material} uniforms={uniforms} vertexShader={faceVertexShader} fragmentShader={faceFragmentShader} transparent depthWrite={false} depthTest toneMapped={false} />
-      </points>
-      <lineSegments geometry={contours} renderOrder={2}>
-        <lineBasicMaterial ref={contourMaterial} color="#a3f4ff" transparent opacity={.20} depthWrite={false} blending={AdditiveBlending} toneMapped={false} />
-      </lineSegments>
-    </group>
-    <group ref={ambient}>
-      <points geometry={atmosphere} renderOrder={-1}>
-        <pointsMaterial color="#7cc4e6" size={.009} transparent opacity={.16} depthWrite={false} sizeAttenuation blending={AdditiveBlending} toneMapped={false} />
-      </points>
-    </group>
-  </>;
+  return <group ref={group}>
+    <mesh ref={photo} geometry={detail} renderOrder={0} visible={false}>
+      <shaderMaterial ref={photoMaterial} uniforms={detailUniforms} vertexShader={detailVertexShader} fragmentShader={detailFragmentShader} transparent depthWrite={false} depthTest={false} toneMapped={false} />
+    </mesh>
+    <points ref={portrait} geometry={dark} frustumCulled={false} renderOrder={1} onAfterRender={() => {
+      if (hasRendered.current) return;
+      hasRendered.current = true;
+      onReady();
+    }}>
+      <shaderMaterial ref={pointsMaterial} uniforms={uniforms} vertexShader={faceVertexShader} fragmentShader={faceFragmentShader} transparent depthWrite={false} depthTest={false} toneMapped={false} />
+    </points>
+  </group>;
 }
 
 export default function HologramScene(props: SceneProps) {
-  const [assets, setAssets] = useState<{ data: PortraitData; texture: Texture } | null>(null);
+  const [assets, setAssets] = useState<Assets | null>(null);
   const { onFailure } = props;
   useEffect(() => {
     const controller = new AbortController();
@@ -142,17 +185,21 @@ export default function HologramScene(props: SceneProps) {
     let texture: Texture | undefined;
     let bitmap: ImageBitmap | undefined;
     const load = async () => {
-      const response = await fetch(hologram.textureUrl, { signal: controller.signal, credentials: "same-origin" });
+      const [response, particles, lightParticles, surface] = await Promise.all([
+        fetch(hologram.textureUrl, { signal: controller.signal, credentials: "same-origin" }),
+        get(hologram.particlesUrl),
+        get(hologram.lightParticlesUrl),
+        get(hologram.detailUrl),
+      ]);
       if (!response.ok) throw new Error("Portrait detail unavailable.");
       const blob = await response.blob();
-      bitmap = await createImageBitmap(blob, { imageOrientation: "flipY" });
+      bitmap = await createImageBitmap(blob, { imageOrientation: "flipY", premultiplyAlpha: "none" });
       if (controller.signal.aborted) { bitmap.close(); return; }
       texture = new Texture(bitmap);
       texture.colorSpace = SRGBColorSpace;
       texture.flipY = false;
       texture.needsUpdate = true;
-      const [particles, contours, surface] = await Promise.all([get(hologram.surfaceUrl), get(hologram.contourUrl), get(hologram.detailUrl)]);
-      if (!controller.signal.aborted) setAssets({ data: decodePortrait(particles, contours, surface), texture });
+      if (!controller.signal.aborted) setAssets({ data: decodePortrait(particles, surface), lightPoints: decodePoints(lightParticles), texture });
     };
     load().catch(() => {
       texture?.dispose(); bitmap?.close();
@@ -170,7 +217,7 @@ export default function HologramScene(props: SceneProps) {
     fallback={null}
     onCreated={({ gl, camera, size }) => {
       // Same 4-world-unit framing as the locally generated static fallback.
-      camera.zoom = size.height / 4;
+      camera.zoom = Math.min(size.width, size.height) / hologram.framing;
       camera.updateProjectionMatrix();
       gl.setClearColor(0x05060b, 0);
     }}
@@ -178,7 +225,7 @@ export default function HologramScene(props: SceneProps) {
   >
     <ResponsiveCamera />
     <RendererLifecycle onFailure={onFailure} />
-    <Sculpture data={assets.data} texture={assets.texture} pointer={props.pointer} reveal={props.reveal} quality={props.quality} onReady={props.onReady} onDegrade={props.onDegrade} onPromote={props.onPromote} />
+    <Sculpture {...props} {...assets} />
   </Canvas>;
 }
 
@@ -187,8 +234,8 @@ function ResponsiveCamera() {
   useEffect(() => {
     // R3F cameras are mutable Three.js objects; synchronize on viewport changes.
     // eslint-disable-next-line react-hooks/immutability
-    camera.zoom = size.height / 4;
+    camera.zoom = Math.min(size.width, size.height) / hologram.framing;
     camera.updateProjectionMatrix();
-  }, [camera, size.height]);
+  }, [camera, size.height, size.width]);
   return null;
 }
