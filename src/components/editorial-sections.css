@@ -1,0 +1,76 @@
+.editorial-section {
+  max-width: 1440px;
+  margin-inline: auto;
+  padding: clamp(60px, 8vw, 110px) clamp(20px, 7vw, 100px);
+  scroll-margin-top: 15px;
+  border-bottom: 1px solid var(--border);
+}
+
+.editorial-section-heading {
+  padding-bottom: clamp(24px, 4vw, 48px);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+.editorial-section-heading::after {
+  content: "";
+  position: absolute;
+  inset: auto auto -1px 0;
+  width: clamp(32px, 5vw, 72px);
+  height: 1px;
+  background: var(--border-accent);
+}
+
+.editorial-section-heading > p,
+.editorial-post-category {
+  margin: 0;
+  color: var(--foreground-accent);
+  font: 500 .875rem/1.5 var(--font-geist-mono), monospace;
+  letter-spacing: .08em;
+}
+
+.editorial-section-heading > h2 {
+  margin: .75rem 0 0;
+  font-size: clamp(2.25rem, 5.25vw, 4.8rem);
+  font-weight: 560;
+  line-height: 1.02;
+  letter-spacing: -.066em;
+  text-wrap: balance;
+}
+
+.editorial-section-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: clamp(16px, 3vw, 32px);
+  margin: clamp(24px, 4vw, 48px) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.editorial-section-grid > li {
+  padding: clamp(18px, 3vw, 32px);
+  border: 1px solid var(--border);
+  background: var(--surface-soft);
+  overflow-wrap: anywhere;
+}
+
+.editorial-section-grid :is(figure, blockquote, h3, p) { margin: 0; }
+.editorial-section-grid :is(figcaption, h3 + p, .editorial-post-category + h3) { margin-top: .75rem; }
+.editorial-section-grid :is(figcaption span, h3 + p) { color: var(--text-support); }
+.editorial-section-grid figcaption span { display: block; }
+.editorial-section-grid a { text-decoration: underline; text-underline-offset: .2em; }
+.editorial-section-grid a:hover { color: var(--foreground-accent); }
+
+@keyframes editorial-heading-reveal {
+  from { opacity: .65; transform: translateY(9px); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .editorial-section-heading > :is(p, h2) {
+      animation: editorial-heading-reveal auto ease-out both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 100%;
+    }
+  }
+}

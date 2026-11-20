@@ -247,9 +247,10 @@ try {
       }
       for (const [name, selector] of Object.entries({
         hero: "#home", bio: "#about", statistics: ".engineering-stats", experience: "#experience",
-        projects: ".home-project-card", ai: "#ai-engineering", contact: "#contact", footer: "footer",
+        projects: ".home-project-card", ai: "#ai-engineering", testimonials: "#testimonials",
+        blogs: "#blogs", contact: "#contact", footer: "footer",
       })) {
-        if (name !== "hero") await evalPage(`document.querySelector('${selector}').scrollIntoView()`);
+        if (name !== "hero") await evalPage(`document.querySelector('${selector}').scrollIntoView({ behavior: 'instant' })`);
         await delay(90);
         await screenshot(`${size}-${scheme}-${name}`);
       }

@@ -145,3 +145,11 @@ footer.engineering-footer {
 @media (prefers-reduced-motion: reduce) {
   .footer-identity-heading, .footer-back-to-top:hover .footer-progress-ring > svg:last-child { transform: none; }
 }
+
+.footer-resume-link {
+  color: var(--text-support);
+  font-size: .875rem;
+  padding-block: 12px;
+}
+.footer-resume-link:hover { color: var(--accent); }
+.footer-resume-link:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 4px; }

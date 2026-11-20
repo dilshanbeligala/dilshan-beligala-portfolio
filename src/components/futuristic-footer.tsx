@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowUp } from "lucide-react";
 import { currentEmployer } from "@/lib/professional-history";
 import { footerTechnologies } from "@/data/footer-technologies";
@@ -24,6 +25,7 @@ export function FuturisticFooter({ homeHref = "#home" }: { homeHref?: string }) 
       </div>
       <div className="footer-actions">
         <FooterSocialLinks />
+        <Link className="footer-resume-link" href="/#resume">Resume</Link>
         <a className="footer-back-to-top" href={homeHref}>
           <span>Back to Top</span>
           <span className="footer-progress-ring" aria-hidden="true">

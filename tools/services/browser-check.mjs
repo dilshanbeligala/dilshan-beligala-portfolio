@@ -74,10 +74,16 @@ try {
   await media("dark");
   await send("Page.navigate", { url: origin });
   await until(`!!${hasSection}`);
-  assert.equal(await js("document.querySelector('#projects').nextElementSibling.id"), "services");
-  assert.equal(await js(`${hasSection}.nextElementSibling.id`), "ai-engineering");
+  assert.equal(await js("document.querySelector('#ai-engineering').nextElementSibling.id"), "services");
+  assert.equal(await js(`${hasSection}.nextElementSibling.id`), "testimonials");
   assert.equal(await js(`document.querySelectorAll(${JSON.stringify(rows)}).length`), 14);
   assert.equal(await js(`[...document.querySelectorAll(${JSON.stringify(rows + " summary")})].every(summary => summary.getAttribute('aria-controls') === summary.nextElementSibling.id)`), true);
+  await go("#ai-engineering");
+  await until("document.querySelector('.desktop-nav .active')?.hash === '#ai-engineering'");
+  await go(featured);
+  await until(`document.querySelector(${JSON.stringify(navSelector)}).getAttribute('aria-current') === 'location'`);
+  await go("#ai-engineering");
+  await until("document.querySelector('.desktop-nav .active')?.hash === '#ai-engineering'");
   await js(`void document.querySelector(${JSON.stringify(navSelector)}).click()`);
   await until(`location.hash === '#services' && ${scrollPosition} < 160`);
   await until(`document.querySelector(${JSON.stringify(navSelector)}).getAttribute('aria-current') === 'location'`);
@@ -132,6 +138,7 @@ try {
   await media("light", "reduce");
   await until("getComputedStyle(document.querySelector('.services-intro h2 > span > span')).animationName === 'none'");
   assert.equal(await js("document.querySelector('.services-actions a:last-child').getAttribute('href')"), "mailto:beligaladilshan@gmail.com");
+  await go(".services-actions a:first-child");
   await js("void document.querySelector('.services-actions a:first-child').click()");
   await until("location.hash === '#contact' && document.querySelector('#contact').getBoundingClientRect().top < 145");
   await js("void history.back()");

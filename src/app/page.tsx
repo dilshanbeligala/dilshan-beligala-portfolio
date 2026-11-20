@@ -1,3 +1,6 @@
+import { ResumeSection } from "@/components/resume/resume-section";
+import { BlogsSection } from "@/components/blogs/blogs-section";
+import { TestimonialsSection } from "@/components/testimonials/testimonials-section";
 import { ContactLinks } from "@/components/contact-links";
 import { FuturisticFooter } from "@/components/futuristic-footer";
 import { ServicesSection } from "@/components/services/services-section";
@@ -39,8 +42,11 @@ export default function Home() {
       <div className="discipline-strip" aria-label="Areas of focus"><span>THOUGHTFULLY ENGINEERED.</span><span><Smartphone size={16} /> Mobile development</span><span><Code2 size={17} /> Full-stack engineering</span><span><Layers3 size={17} /> AI-assisted development</span><span className="strip-symbol">✳</span></div>
       <HomeExperience />
       <HomeProjectArchive />
-      <ServicesSection />
       <AiEngineeringSection />
+      <ServicesSection />
+      <TestimonialsSection />
+      <BlogsSection />
+      <ResumeSection />
       <section id="contact" className="contact-section" data-constellation="contact"><p className="eyebrow"><span className="status-dot" /> START A CONVERSATION</p><h2>Let’s build<br />what’s <span>next.</span></h2><MagneticLink className="button button-primary magnetic" href={portfolio.linkedin} target="_blank" rel="noopener noreferrer">Connect on LinkedIn <ArrowUpRight size={19} /><span className="sr-only"> (opens in a new tab)</span></MagneticLink><ContactLinks /></section>
     </main>
     <FuturisticFooter />
