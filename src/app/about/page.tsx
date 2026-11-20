@@ -1,3 +1,4 @@
+import { FuturisticFooter } from "@/components/futuristic-footer";
 import type { Metadata } from "next";
 import { ArrowUpRight } from "lucide-react";
 import { EngineeringStatsSection } from "@/components/engineering-stats-section";
@@ -134,12 +135,6 @@ export default function AboutPage() {
         </div>
       </section>
     </main>
-    <footer>
-      {/* Native route navigation keeps each page’s DOM-scoped effects in its own document. */}
-      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-      <a className="footer-brand" href="/">DB<span> / DILSHAN BELIGALA</span></a>
-      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-      <a href="/#home">Back to home</a>
-    </footer>
+    <FuturisticFooter homeHref="/#home" />
   </>;
 }

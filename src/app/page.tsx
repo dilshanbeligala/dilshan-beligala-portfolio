@@ -1,3 +1,7 @@
+import { ContactLinks } from "@/components/contact-links";
+import { FuturisticFooter } from "@/components/futuristic-footer";
+import { ServicesSection } from "@/components/services/services-section";
+import { AiEngineeringSection } from "@/components/ai-engineering-section";
 import { ArrowDown, ArrowUpRight, Code2, Layers3, Smartphone } from "lucide-react";
 import { MagneticLink } from "@/components/magnetic-link";
 import { HomeAbout, HomeExperience, HomeProjectArchive } from "@/components/home-professional";
@@ -35,9 +39,10 @@ export default function Home() {
       <div className="discipline-strip" aria-label="Areas of focus"><span>THOUGHTFULLY ENGINEERED.</span><span><Smartphone size={16} /> Mobile development</span><span><Code2 size={17} /> Full-stack engineering</span><span><Layers3 size={17} /> AI-assisted development</span><span className="strip-symbol">✳</span></div>
       <HomeExperience />
       <HomeProjectArchive />
-      <section id="ai-engineering" className="content-section" data-constellation="ai"><p className="eyebrow">04 / AI ENGINEERING</p><div><h2>Human imagination.<br /><span>Intelligent tools.</span></h2><p>I explore AI-assisted software development as a way to turn ideas into thoughtful software. The focus stays on understanding the problem, reviewing the output, and building experiences that make sense for the people using them.</p><div className="tags"><span>AI-assisted development</span><span>Creative problem-solving</span><span>Engineering discipline</span></div></div></section>
-      <section id="contact" className="contact-section" data-constellation="contact"><p className="eyebrow"><span className="status-dot" /> START A CONVERSATION</p><h2>Let’s build<br />what’s <span>next.</span></h2><MagneticLink className="button button-primary magnetic" href={portfolio.linkedin} target="_blank" rel="noopener noreferrer">Connect on LinkedIn <ArrowUpRight size={19} /><span className="sr-only"> (opens in a new tab)</span></MagneticLink></section>
+      <ServicesSection />
+      <AiEngineeringSection />
+      <section id="contact" className="contact-section" data-constellation="contact"><p className="eyebrow"><span className="status-dot" /> START A CONVERSATION</p><h2>Let’s build<br />what’s <span>next.</span></h2><MagneticLink className="button button-primary magnetic" href={portfolio.linkedin} target="_blank" rel="noopener noreferrer">Connect on LinkedIn <ArrowUpRight size={19} /><span className="sr-only"> (opens in a new tab)</span></MagneticLink><ContactLinks /></section>
     </main>
-    <footer><a className="footer-brand" href="#home">DB<span> / DILSHAN BELIGALA</span></a><p>Thoughtfully designed. Intentionally engineered.</p><a href="#home">Back to top ↑</a></footer>
+    <FuturisticFooter />
   </>;
 }
